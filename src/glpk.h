@@ -27,6 +27,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include "mygmp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,10 +83,9 @@ typedef struct glp_prob glp_prob;
 #define GLP_OPT            5  /* solution is optimal */
 #define GLP_UNBND          6  /* solution is unbounded */
 
-typedef struct
-{     /* basis factorization control parameters */
-      int msg_lev;            /* (not used) */
-      int type;               /* factorization type: */
+typedef struct {     /* basis factorization control parameters */
+    int msg_lev;            /* (not used) */
+    int type;               /* factorization type: */
 #if 1 /* 05/III-2014 */
 #define GLP_BF_LUF      0x00  /* plain LU-factorization */
 #define GLP_BF_BTF      0x10  /* block triangular LU-factorization */
@@ -93,140 +93,137 @@ typedef struct
 #define GLP_BF_FT       0x01  /* Forrest-Tomlin (LUF only) */
 #define GLP_BF_BG       0x02  /* Schur compl. + Bartels-Golub */
 #define GLP_BF_GR       0x03  /* Schur compl. + Givens rotation */
-      int lu_size;            /* (not used) */
-      double piv_tol;         /* sgf_piv_tol */
-      int piv_lim;            /* sgf_piv_lim */
-      int suhl;               /* sgf_suhl */
-      double eps_tol;         /* sgf_eps_tol */
-      double max_gro;         /* (not used) */
-      int nfs_max;            /* fhvint.nfs_max */
-      double upd_tol;         /* (not used) */
-      int nrs_max;            /* scfint.nn_max */
-      int rs_size;            /* (not used) */
-      double foo_bar[38];     /* (reserved) */
+    int lu_size;            /* (not used) */
+    double piv_tol;         /* sgf_piv_tol */
+    int piv_lim;            /* sgf_piv_lim */
+    int suhl;               /* sgf_suhl */
+    double eps_tol;         /* sgf_eps_tol */
+    double max_gro;         /* (not used) */
+    int nfs_max;            /* fhvint.nfs_max */
+    double upd_tol;         /* (not used) */
+    int nrs_max;            /* scfint.nn_max */
+    int rs_size;            /* (not used) */
+    double foo_bar[38];     /* (reserved) */
 } glp_bfcp;
 
-typedef struct
-{     /* simplex method control parameters */
-      int msg_lev;            /* message level: */
+typedef struct {     /* simplex method control parameters */
+    int msg_lev;            /* message level: */
 #define GLP_MSG_OFF        0  /* no output */
 #define GLP_MSG_ERR        1  /* warning and error messages only */
 #define GLP_MSG_ON         2  /* normal output */
 #define GLP_MSG_ALL        3  /* full output */
 #define GLP_MSG_DBG        4  /* debug output */
-      int meth;               /* simplex method option: */
+    int meth;               /* simplex method option: */
 #define GLP_PRIMAL         1  /* use primal simplex */
 #define GLP_DUALP          2  /* use dual; if it fails, use primal */
 #define GLP_DUAL           3  /* use dual simplex */
-      int pricing;            /* pricing technique: */
+    int pricing;            /* pricing technique: */
 #define GLP_PT_STD      0x11  /* standard (Dantzig's rule) */
 #define GLP_PT_PSE      0x22  /* projected steepest edge */
-      int r_test;             /* ratio test technique: */
+    int r_test;             /* ratio test technique: */
 #define GLP_RT_STD      0x11  /* standard (textbook) */
 #define GLP_RT_HAR      0x22  /* Harris' two-pass ratio test */
 #if 1 /* 16/III-2016 */
 #define GLP_RT_FLIP     0x33  /* long-step (flip-flop) ratio test */
 #endif
-      double tol_bnd;         /* primal feasibility tolerance */
-      double tol_dj;          /* dual feasibility tolerance */
-      double tol_piv;         /* pivot tolerance */
-      double obj_ll;          /* lower objective limit */
-      double obj_ul;          /* upper objective limit */
-      int it_lim;             /* simplex iteration limit */
-      int tm_lim;             /* time limit, ms */
-      int out_frq;            /* display output frequency, ms */
-      int out_dly;            /* display output delay, ms */
-      int presolve;           /* enable/disable using LP presolver */
+    double tol_bnd;         /* primal feasibility tolerance */
+    double tol_dj;          /* dual feasibility tolerance */
+    double tol_piv;         /* pivot tolerance */
+    double obj_ll;          /* lower objective limit */
+    double obj_ul;          /* upper objective limit */
+    int it_lim;             /* simplex iteration limit */
+    int tm_lim;             /* time limit, ms */
+    int out_frq;            /* display output frequency, ms */
+    int out_dly;            /* display output delay, ms */
+    int presolve;           /* enable/disable using LP presolver */
 #if 1 /* 11/VII-2017 (not documented yet) */
-      int excl;               /* exclude fixed non-basic variables */
-      int shift;              /* shift bounds of variables to zero */
-      int aorn;               /* option to use A or N: */
+    int excl;               /* exclude fixed non-basic variables */
+    int shift;              /* shift bounds of variables to zero */
+    int aorn;               /* option to use A or N: */
 #define GLP_USE_AT         1  /* use A matrix in row-wise format */
 #define GLP_USE_NT         2  /* use N matrix in row-wise format */
-      double foo_bar[33];     /* (reserved) */
+    double foo_bar[33];     /* (reserved) */
 #endif
 } glp_smcp;
 
-typedef struct
-{     /* interior-point solver control parameters */
-      int msg_lev;            /* message level (see glp_smcp) */
-      int ord_alg;            /* ordering algorithm: */
+typedef struct {     /* interior-point solver control parameters */
+    int msg_lev;            /* message level (see glp_smcp) */
+    int ord_alg;            /* ordering algorithm: */
 #define GLP_ORD_NONE       0  /* natural (original) ordering */
 #define GLP_ORD_QMD        1  /* quotient minimum degree (QMD) */
 #define GLP_ORD_AMD        2  /* approx. minimum degree (AMD) */
 #define GLP_ORD_SYMAMD     3  /* approx. minimum degree (SYMAMD) */
-      double foo_bar[48];     /* (reserved) */
+    double foo_bar[48];     /* (reserved) */
 } glp_iptcp;
 
 typedef struct glp_tree glp_tree;
 /* branch-and-bound tree */
 
-typedef struct
-{     /* integer optimizer control parameters */
-      int msg_lev;            /* message level (see glp_smcp) */
-      int br_tech;            /* branching technique: */
+typedef struct {     /* integer optimizer control parameters */
+    int msg_lev;            /* message level (see glp_smcp) */
+    int br_tech;            /* branching technique: */
 #define GLP_BR_FFV         1  /* first fractional variable */
 #define GLP_BR_LFV         2  /* last fractional variable */
 #define GLP_BR_MFV         3  /* most fractional variable */
 #define GLP_BR_DTH         4  /* heuristic by Driebeck and Tomlin */
 #define GLP_BR_PCH         5  /* hybrid pseudocost heuristic */
-      int bt_tech;            /* backtracking technique: */
+    int bt_tech;            /* backtracking technique: */
 #define GLP_BT_DFS         1  /* depth first search */
 #define GLP_BT_BFS         2  /* breadth first search */
 #define GLP_BT_BLB         3  /* best local bound */
 #define GLP_BT_BPH         4  /* best projection heuristic */
-      double tol_int;         /* mip.tol_int */
-      double tol_obj;         /* mip.tol_obj */
-      int tm_lim;             /* mip.tm_lim (milliseconds) */
-      int out_frq;            /* mip.out_frq (milliseconds) */
-      int out_dly;            /* mip.out_dly (milliseconds) */
-      void (*cb_func)(glp_tree *T, void *info);
-                              /* mip.cb_func */
-      void *cb_info;          /* mip.cb_info */
-      int cb_size;            /* mip.cb_size */
-      int pp_tech;            /* preprocessing technique: */
+    double tol_int;         /* mip.tol_int */
+    double tol_obj;         /* mip.tol_obj */
+    int tm_lim;             /* mip.tm_lim (milliseconds) */
+    int out_frq;            /* mip.out_frq (milliseconds) */
+    int out_dly;            /* mip.out_dly (milliseconds) */
+    void (*cb_func)(glp_tree *T, void *info);
+
+    /* mip.cb_func */
+    void *cb_info;          /* mip.cb_info */
+    int cb_size;            /* mip.cb_size */
+    int pp_tech;            /* preprocessing technique: */
 #define GLP_PP_NONE        0  /* disable preprocessing */
 #define GLP_PP_ROOT        1  /* preprocessing only on root level */
 #define GLP_PP_ALL         2  /* preprocessing on all levels */
-      double mip_gap;         /* relative MIP gap tolerance */
-      int mir_cuts;           /* MIR cuts       (GLP_ON/GLP_OFF) */
-      int gmi_cuts;           /* Gomory's cuts  (GLP_ON/GLP_OFF) */
-      int cov_cuts;           /* cover cuts     (GLP_ON/GLP_OFF) */
-      int clq_cuts;           /* clique cuts    (GLP_ON/GLP_OFF) */
-      int presolve;           /* enable/disable using MIP presolver */
-      int binarize;           /* try to binarize integer variables */
-      int fp_heur;            /* feasibility pump heuristic */
-      int ps_heur;            /* proximity search heuristic */
-      int ps_tm_lim;          /* proxy time limit, milliseconds */
-      int sr_heur;            /* simple rounding heuristic */
+    double mip_gap;         /* relative MIP gap tolerance */
+    int mir_cuts;           /* MIR cuts       (GLP_ON/GLP_OFF) */
+    int gmi_cuts;           /* Gomory's cuts  (GLP_ON/GLP_OFF) */
+    int cov_cuts;           /* cover cuts     (GLP_ON/GLP_OFF) */
+    int clq_cuts;           /* clique cuts    (GLP_ON/GLP_OFF) */
+    int presolve;           /* enable/disable using MIP presolver */
+    int binarize;           /* try to binarize integer variables */
+    int fp_heur;            /* feasibility pump heuristic */
+    int ps_heur;            /* proximity search heuristic */
+    int ps_tm_lim;          /* proxy time limit, milliseconds */
+    int sr_heur;            /* simple rounding heuristic */
 #if 1 /* 24/X-2015; not documented--should not be used */
-      int use_sol;            /* use existing solution */
-      const char *save_sol;   /* filename to save every new solution */
-      int alien;              /* use alien solver */
+    int use_sol;            /* use existing solution */
+    const char *save_sol;   /* filename to save every new solution */
+    int alien;              /* use alien solver */
 #endif
 #if 1 /* 16/III-2016; not documented--should not be used */
-      int flip;               /* use long-step dual simplex */
+    int flip;               /* use long-step dual simplex */
 #endif
-      double foo_bar[23];     /* (reserved) */
+    double foo_bar[23];     /* (reserved) */
 } glp_iocp;
 
-typedef struct
-{     /* additional row attributes */
-      int level;
-      /* subproblem level at which the row was added */
-      int origin;
-      /* row origin flag: */
+typedef struct {     /* additional row attributes */
+    int level;
+    /* subproblem level at which the row was added */
+    int origin;
+    /* row origin flag: */
 #define GLP_RF_REG         0  /* regular constraint */
 #define GLP_RF_LAZY        1  /* "lazy" constraint */
 #define GLP_RF_CUT         2  /* cutting plane constraint */
-      int klass;
-      /* row class descriptor: */
+    int klass;
+    /* row class descriptor: */
 #define GLP_RF_GMI         1  /* Gomory's mixed integer cut */
 #define GLP_RF_MIR         2  /* mixed integer rounding cut */
 #define GLP_RF_COV         3  /* mixed cover cut */
 #define GLP_RF_CLQ         4  /* clique cut */
-      double foo_bar[7];
-      /* (reserved) */
+    double foo_bar[7];
+    /* (reserved) */
 } glp_attr;
 
 /* enable/disable flag: */
@@ -279,26 +276,37 @@ typedef struct
 #define GLP_MPS_DECK       1  /* fixed (ancient) */
 #define GLP_MPS_FILE       2  /* free (modern) */
 
-typedef struct
-{     /* MPS format control parameters */
-      int blank;
-      /* character code to replace blanks in symbolic names */
-      char *obj_name;
-      /* objective row name */
-      double tol_mps;
-      /* zero tolerance for MPS data */
-      double foo_bar[17];
-      /* (reserved for use in the future) */
+typedef struct {     /* MPS format control parameters */
+    int blank;
+    /* character code to replace blanks in symbolic names */
+    char *obj_name;
+    /* objective row name */
+    double tol_mps;
+    /* zero tolerance for MPS data */
+    double foo_bar[17];
+    /* (reserved for use in the future) */
 } glp_mpscp;
 
-typedef struct
-{     /* CPLEX LP format control parameters */
-      double foo_bar[20];
-      /* (reserved for use in the future) */
+typedef struct {     /* CPLEX LP format control parameters */
+    double foo_bar[20];
+    /* (reserved for use in the future) */
 } glp_cpxcp;
 
 typedef struct glp_tran glp_tran;
 /* MathProg translator workspace */
+
+typedef struct {
+    int updated;
+    int m;
+    mpq_t *partial_basis;
+} glp_dbginfo;
+/* Store debug information about steps of the simplex method */
+
+glp_dbginfo *glp_create_dbginfo(void);
+/* Create a debug information object */
+
+void glp_dbginfo_free(glp_dbginfo *info);
+/* Destroy the debug information object */
 
 glp_prob *glp_create_prob(void);
 /* create problem object */
@@ -325,26 +333,26 @@ void glp_set_col_name(glp_prob *P, int j, const char *name);
 /* assign (change) column name */
 
 void glp_set_row_bnds(glp_prob *P, int i, int type, double lb,
-      double ub);
+                      double ub);
 /* set (change) row bounds */
 
 void glp_set_col_bnds(glp_prob *P, int j, int type, double lb,
-      double ub);
+                      double ub);
 /* set (change) column bounds */
 
 void glp_set_obj_coef(glp_prob *P, int j, double coef);
 /* set (change) obj. coefficient or constant term */
 
 void glp_set_mat_row(glp_prob *P, int i, int len, const int ind[],
-      const double val[]);
+                     const double val[]);
 /* set (replace) row of the constraint matrix */
 
 void glp_set_mat_col(glp_prob *P, int j, int len, const int ind[],
-      const double val[]);
+                     const double val[]);
 /* set (replace) column of the constraint matrix */
 
 void glp_load_matrix(glp_prob *P, int ne, const int ia[],
-      const int ja[], const double ar[]);
+                     const int ja[], const double ar[]);
 /* load (replace) the whole constraint matrix */
 
 int glp_check_dup(int m, int n, int ne, const int ia[], const int ja[]);
@@ -470,6 +478,11 @@ int glp_simplex(glp_prob *P, const glp_smcp *parm);
 int glp_exact(glp_prob *P, const glp_smcp *parm);
 /* solve LP problem in exact arithmetic */
 
+int glp_exact_debug(glp_prob *P, const glp_smcp *parm, glp_dbginfo *info);
+/* solve LP problem in exact arithmetic while storing addition
+ * information about the execution of the simplex algorithm
+ */
+
 void glp_init_smcp(glp_smcp *parm);
 /* initialize simplex method control parameters */
 
@@ -571,7 +584,7 @@ double glp_mip_col_val(glp_prob *P, int j);
 /* retrieve column value (MIP solution) */
 
 void glp_check_kkt(glp_prob *P, int sol, int cond, double *ae_max,
-      int *ae_ind, double *re_max, int *re_ind);
+                   int *ae_ind, double *re_max, int *re_ind);
 /* check feasibility/optimality conditions */
 
 int glp_print_sol(glp_prob *P, const char *fname);
@@ -584,7 +597,7 @@ int glp_write_sol(glp_prob *P, const char *fname);
 /* write basic solution to text file */
 
 int glp_print_ranges(glp_prob *P, int len, const int list[],
-      int flags, const char *fname);
+                     int flags, const char *fname);
 /* print sensitivity analysis report */
 
 int glp_print_ipt(glp_prob *P, const char *fname);
@@ -651,19 +664,19 @@ int glp_transform_col(glp_prob *P, int len, int ind[], double val[]);
 /* transform explicitly specified column */
 
 int glp_prim_rtest(glp_prob *P, int len, const int ind[],
-      const double val[], int dir, double eps);
+                   const double val[], int dir, double eps);
 /* perform primal ratio test */
 
 int glp_dual_rtest(glp_prob *P, int len, const int ind[],
-      const double val[], int dir, double eps);
+                   const double val[], int dir, double eps);
 /* perform dual ratio test */
 
 void glp_analyze_bound(glp_prob *P, int k, double *value1, int *var1,
-      double *value2, int *var2);
+                       double *value2, int *var2);
 /* analyze active bound of non-basic variable */
 
 void glp_analyze_coef(glp_prob *P, int k, double *coef1, int *var1,
-      double *value1, double *coef2, int *var2, double *value2);
+                      double *value1, double *coef2, int *var2, double *value2);
 /* analyze objective coefficient at basic variable */
 
 int glp_ios_reason(glp_tree *T);
@@ -673,7 +686,7 @@ glp_prob *glp_ios_get_prob(glp_tree *T);
 /* access the problem object */
 
 void glp_ios_tree_size(glp_tree *T, int *a_cnt, int *n_cnt,
-      int *t_cnt);
+                       int *t_cnt);
 /* determine size of the branch-and-bound tree */
 
 int glp_ios_curr_node(glp_tree *T);
@@ -710,8 +723,8 @@ int glp_ios_pool_size(glp_tree *T);
 /* determine current size of the cut pool */
 
 int glp_ios_add_row(glp_tree *T,
-      const char *name, int klass, int flags, int len, const int ind[],
-      const double val[], int type, double rhs);
+                    const char *name, int klass, int flags, int len, const int ind[],
+                    const double val[], int type, double rhs);
 /* add row (constraint) to the cut pool */
 
 void glp_ios_del_row(glp_tree *T, int i);
@@ -790,11 +803,11 @@ void glp_init_mpscp(glp_mpscp *parm);
 /* initialize MPS format control parameters */
 
 int glp_read_mps(glp_prob *P, int fmt, const glp_mpscp *parm,
-      const char *fname);
+                 const char *fname);
 /* read problem data in MPS format */
 
 int glp_write_mps(glp_prob *P, int fmt, const glp_mpscp *parm,
-      const char *fname);
+                  const char *fname);
 /* write problem data in MPS format */
 
 void glp_init_cpxcp(glp_cpxcp *parm);
@@ -925,7 +938,7 @@ void glp_mem_limit(int limit);
 /* set memory usage limit */
 
 void glp_mem_usage(int *count, int *cpeak, size_t *total,
-      size_t *tpeak);
+                   size_t *tpeak);
 /* get memory usage information */
 
 double glp_time(void);
@@ -938,69 +951,66 @@ typedef struct glp_graph glp_graph;
 typedef struct glp_vertex glp_vertex;
 typedef struct glp_arc glp_arc;
 
-struct glp_graph
-{     /* graph descriptor */
-      void *pool; /* DMP *pool; */
-      /* memory pool to store graph components */
-      char *name;
-      /* graph name (1 to 255 chars); NULL means no name is assigned
-         to the graph */
-      int nv_max;
-      /* length of the vertex list (enlarged automatically) */
-      int nv;
-      /* number of vertices in the graph, 0 <= nv <= nv_max */
-      int na;
-      /* number of arcs in the graph, na >= 0 */
-      glp_vertex **v; /* glp_vertex *v[1+nv_max]; */
-      /* v[i], 1 <= i <= nv, is a pointer to i-th vertex */
-      void *index; /* AVL *index; */
-      /* vertex index to find vertices by their names; NULL means the
-         index does not exist */
-      int v_size;
-      /* size of data associated with each vertex (0 to 256 bytes) */
-      int a_size;
-      /* size of data associated with each arc (0 to 256 bytes) */
+struct glp_graph {     /* graph descriptor */
+    void *pool; /* DMP *pool; */
+    /* memory pool to store graph components */
+    char *name;
+    /* graph name (1 to 255 chars); NULL means no name is assigned
+       to the graph */
+    int nv_max;
+    /* length of the vertex list (enlarged automatically) */
+    int nv;
+    /* number of vertices in the graph, 0 <= nv <= nv_max */
+    int na;
+    /* number of arcs in the graph, na >= 0 */
+    glp_vertex **v; /* glp_vertex *v[1+nv_max]; */
+    /* v[i], 1 <= i <= nv, is a pointer to i-th vertex */
+    void *index; /* AVL *index; */
+    /* vertex index to find vertices by their names; NULL means the
+       index does not exist */
+    int v_size;
+    /* size of data associated with each vertex (0 to 256 bytes) */
+    int a_size;
+    /* size of data associated with each arc (0 to 256 bytes) */
 };
 
-struct glp_vertex
-{     /* vertex descriptor */
-      int i;
-      /* vertex ordinal number, 1 <= i <= nv */
-      char *name;
-      /* vertex name (1 to 255 chars); NULL means no name is assigned
-         to the vertex */
-      void *entry; /* AVLNODE *entry; */
-      /* pointer to corresponding entry in the vertex index; NULL means
-         that either the index does not exist or the vertex has no name
-         assigned */
-      void *data;
-      /* pointer to data associated with the vertex */
-      void *temp;
-      /* working pointer */
-      glp_arc *in;
-      /* pointer to the (unordered) list of incoming arcs */
-      glp_arc *out;
-      /* pointer to the (unordered) list of outgoing arcs */
+struct glp_vertex {     /* vertex descriptor */
+    int i;
+    /* vertex ordinal number, 1 <= i <= nv */
+    char *name;
+    /* vertex name (1 to 255 chars); NULL means no name is assigned
+       to the vertex */
+    void *entry; /* AVLNODE *entry; */
+    /* pointer to corresponding entry in the vertex index; NULL means
+       that either the index does not exist or the vertex has no name
+       assigned */
+    void *data;
+    /* pointer to data associated with the vertex */
+    void *temp;
+    /* working pointer */
+    glp_arc *in;
+    /* pointer to the (unordered) list of incoming arcs */
+    glp_arc *out;
+    /* pointer to the (unordered) list of outgoing arcs */
 };
 
-struct glp_arc
-{     /* arc descriptor */
-      glp_vertex *tail;
-      /* pointer to the tail endpoint */
-      glp_vertex *head;
-      /* pointer to the head endpoint */
-      void *data;
-      /* pointer to data associated with the arc */
-      void *temp;
-      /* working pointer */
-      glp_arc *t_prev;
-      /* pointer to previous arc having the same tail endpoint */
-      glp_arc *t_next;
-      /* pointer to next arc having the same tail endpoint */
-      glp_arc *h_prev;
-      /* pointer to previous arc having the same head endpoint */
-      glp_arc *h_next;
-      /* pointer to next arc having the same head endpoint */
+struct glp_arc {     /* arc descriptor */
+    glp_vertex *tail;
+    /* pointer to the tail endpoint */
+    glp_vertex *head;
+    /* pointer to the head endpoint */
+    void *data;
+    /* pointer to data associated with the arc */
+    void *temp;
+    /* working pointer */
+    glp_arc *t_prev;
+    /* pointer to previous arc having the same tail endpoint */
+    glp_arc *t_next;
+    /* pointer to next arc having the same tail endpoint */
+    glp_arc *h_prev;
+    /* pointer to previous arc having the same head endpoint */
+    glp_arc *h_next;
+    /* pointer to next arc having the same head endpoint */
 };
 
 glp_graph *glp_create_graph(int v_size, int a_size);
@@ -1046,23 +1056,23 @@ int glp_write_graph(glp_graph *G, const char *fname);
 /* write graph to plain text file */
 
 void glp_mincost_lp(glp_prob *P, glp_graph *G, int names, int v_rhs,
-      int a_low, int a_cap, int a_cost);
+                    int a_low, int a_cap, int a_cost);
 /* convert minimum cost flow problem to LP */
 
 int glp_mincost_okalg(glp_graph *G, int v_rhs, int a_low, int a_cap,
-      int a_cost, double *sol, int a_x, int v_pi);
+                      int a_cost, double *sol, int a_x, int v_pi);
 /* find minimum-cost flow with out-of-kilter algorithm */
 
 int glp_mincost_relax4(glp_graph *G, int v_rhs, int a_low, int a_cap,
-      int a_cost, int crash, double *sol, int a_x, int a_rc);
+                       int a_cost, int crash, double *sol, int a_x, int a_rc);
 /* find minimum-cost flow with Bertsekas-Tseng relaxation method */
 
 void glp_maxflow_lp(glp_prob *P, glp_graph *G, int names, int s,
-      int t, int a_cap);
+                    int t, int a_cap);
 /* convert maximum flow problem to LP */
 
 int glp_maxflow_ffalg(glp_graph *G, int s, int t, int a_cap,
-      double *sol, int a_x, int v_cut);
+                      double *sol, int a_x, int v_cut);
 /* find maximal flow with Ford-Fulkerson algorithm */
 
 int glp_check_asnprob(glp_graph *G, int v_set);
@@ -1074,11 +1084,11 @@ int glp_check_asnprob(glp_graph *G, int v_set);
 #define GLP_ASN_MMP        3  /* maximum matching */
 
 int glp_asnprob_lp(glp_prob *P, int form, glp_graph *G, int names,
-      int v_set, int a_cost);
+                   int v_set, int a_cost);
 /* convert assignment problem to LP */
 
 int glp_asnprob_okalg(int form, glp_graph *G, int v_set, int a_cost,
-      double *sol, int a_x);
+                      double *sol, int a_x);
 /* solve assignment problem with out-of-kilter algorithm */
 
 int glp_asnprob_hall(glp_graph *G, int v_set, int a_x);
@@ -1088,27 +1098,27 @@ double glp_cpp(glp_graph *G, int v_t, int v_es, int v_ls);
 /* solve critical path problem */
 
 int glp_read_mincost(glp_graph *G, int v_rhs, int a_low, int a_cap,
-      int a_cost, const char *fname);
+                     int a_cost, const char *fname);
 /* read min-cost flow problem data in DIMACS format */
 
 int glp_write_mincost(glp_graph *G, int v_rhs, int a_low, int a_cap,
-      int a_cost, const char *fname);
+                      int a_cost, const char *fname);
 /* write min-cost flow problem data in DIMACS format */
 
 int glp_read_maxflow(glp_graph *G, int *s, int *t, int a_cap,
-      const char *fname);
+                     const char *fname);
 /* read maximum flow problem data in DIMACS format */
 
 int glp_write_maxflow(glp_graph *G, int s, int t, int a_cap,
-      const char *fname);
+                      const char *fname);
 /* write maximum flow problem data in DIMACS format */
 
 int glp_read_asnprob(glp_graph *G, int v_set, int a_cost, const char
-      *fname);
+*fname);
 /* read assignment problem data in DIMACS format */
 
 int glp_write_asnprob(glp_graph *G, int v_set, int a_cost, const char
-      *fname);
+*fname);
 /* write assignment problem data in DIMACS format */
 
 int glp_read_ccdata(glp_graph *G, int v_wgt, const char *fname);
@@ -1118,18 +1128,18 @@ int glp_write_ccdata(glp_graph *G, int v_wgt, const char *fname);
 /* write graph in DIMACS clique/coloring format */
 
 int glp_netgen(glp_graph *G, int v_rhs, int a_cap, int a_cost,
-      const int parm[1+15]);
+               const int parm[1 + 15]);
 /* Klingman's network problem generator */
 
-void glp_netgen_prob(int nprob, int parm[1+15]);
+void glp_netgen_prob(int nprob, int parm[1 + 15]);
 /* Klingman's standard network problem instance */
 
 int glp_gridgen(glp_graph *G, int v_rhs, int a_cap, int a_cost,
-      const int parm[1+14]);
+                const int parm[1 + 14]);
 /* grid-like network problem generator */
 
 int glp_rmfgen(glp_graph *G, int *s, int *t, int a_cap,
-      const int parm[1+5]);
+               const int parm[1 + 5]);
 /* Goldfarb's maximum flow problem generator */
 
 int glp_weak_comp(glp_graph *G, int v_num);

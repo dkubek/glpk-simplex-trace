@@ -370,6 +370,81 @@ int ssx_phase_II(SSX *ssx)
       return ret;
 }
 
+int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
+{     int ret;
+    /* display initial progress of the search */
+    if (ssx->msg_lev >= GLP_MSG_ON)
+        show_progress(ssx, 2);
+    /* main loop starts here */
+    for (;;)
+    {  /* display current progress of the search */
+        if (ssx->msg_lev >= GLP_MSG_ON)
+            if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
+                show_progress(ssx, 2);
+        /* check if the iterations limit has been exhausted */
+        if (ssx->it_lim == 0)
+        {  ret = 2;
+            break;
+        }
+        /* check if the time limit has been exhausted */
+        if (ssx->tm_lim >= 0.0 &&
+            ssx->tm_lim <= xdifftime(xtime(), ssx->tm_beg))
+        {  ret = 3;
+            break;
+        }
+        /* choose non-basic variable xN[q] */
+        ssx_chuzc(ssx);
+        /* if xN[q] cannot be chosen, the current basic solution is
+           dual feasible and therefore optimal */
+        if (ssx->q == 0)
+        {  ret = 0;
+            break;
+        }
+        /* compute q-th column of the simplex table */
+        ssx_eval_col(ssx);
+        /* choose basic variable xB[p] */
+        ssx_chuzr(ssx);
+        /* if xB[p] cannot be chosen, the problem has no dual feasible
+           solution (i.e. unbounded) */
+        if (ssx->p == 0)
+        {  ret = 1;
+            break;
+        }
+        /* update values of basic variables */
+        ssx_update_bbar(ssx);
+        // Store basis information
+        info->m = ssx->m;
+        if (info->partial_basis == NULL)
+            info->partial_basis = malloc((1 + info->m) * sizeof(mpq_t));
+
+        for (int i = 0; i <= info->m; ++i) {
+            mpq_init(info->partial_basis[i]);
+            mpq_set(info->partial_basis[i], ssx->bbar[i]);
+        }
+        info->updated = 1;
+
+        if (ssx->p > 0)
+        {  /* compute p-th row of the inverse inv(B) */
+            ssx_eval_rho(ssx);
+            /* compute p-th row of the simplex table */
+            ssx_eval_row(ssx);
+            xassert(mpq_cmp(ssx->aq[ssx->p], ssx->ap[ssx->q]) == 0);
+            /* update reduced costs of non-basic variables */
+            ssx_update_cbar(ssx);
+        }
+        /* jump to the adjacent vertex of the polyhedron */
+        ssx_change_basis(ssx);
+        /* one simplex iteration has been performed */
+        if (ssx->it_lim > 0) ssx->it_lim--;
+        ssx->it_cnt++;
+    }
+    /* display final progress of the search */
+    if (ssx->msg_lev >= GLP_MSG_ON)
+        show_progress(ssx, 2);
+    /* return to the calling program */
+    return ret;
+}
+
 /*----------------------------------------------------------------------
 // ssx_driver - base driver to exact simplex method.
 //
@@ -520,4 +595,136 @@ done: /* decrease the time limit by the spent amount of time */
       return ret;
 }
 
+int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
+{   int m = ssx->m;
+    int *type = ssx->type;
+    mpq_t *lb = ssx->lb;
+    mpq_t *ub = ssx->ub;
+    int *Q_col = ssx->Q_col;
+    mpq_t *bbar = ssx->bbar;
+    int i, k, ret;
+    ssx->tm_beg = xtime();
+    /* factorize the initial basis matrix */
+
+    if (ssx_factorize(ssx))
+#if 0 /* 25/XI-2017 */
+        {  xprintf("Initial basis matrix is singular\n");
+#else
+    {  if (ssx->msg_lev >= GLP_MSG_ERR)
+            xprintf("Initial basis matrix is singular\n");
+#endif
+        ret = 7;
+        goto done;
+    }
+    /* compute values of basic variables */
+    ssx_eval_bbar(ssx);
+    /* check if the initial basic solution is primal feasible */
+    for (i = 1; i <= m; i++)
+    {  int t;
+        k = Q_col[i]; /* x[k] = xB[i] */
+        t = type[k];
+        if (t == SSX_LO || t == SSX_DB || t == SSX_FX)
+        {  /* x[k] has lower bound */
+            if (mpq_cmp(bbar[i], lb[k]) < 0)
+            {  /* which is violated */
+                break;
+            }
+        }
+        if (t == SSX_UP || t == SSX_DB || t == SSX_FX)
+        {  /* x[k] has upper bound */
+            if (mpq_cmp(bbar[i], ub[k]) > 0)
+            {  /* which is violated */
+                break;
+            }
+        }
+    }
+    if (i > m)
+    {  /* no basic variable violates its bounds */
+        ret = 0;
+        goto skip;
+    }
+    /* phase I: find primal feasible solution */
+    ret = ssx_phase_I(ssx);
+    switch (ret)
+    {  case 0:
+            ret = 0;
+            break;
+        case 1:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("PROBLEM HAS NO FEASIBLE SOLUTION\n");
+            ret = 1;
+            break;
+        case 2:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("ITERATIONS LIMIT EXCEEDED; SEARCH TERMINATED\n");
+            ret = 3;
+            break;
+        case 3:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("TIME LIMIT EXCEEDED; SEARCH TERMINATED\n");
+            ret = 5;
+            break;
+        default:
+            xassert(ret != ret);
+    }
+    /* compute values of basic variables (actually only the objective
+       value needs to be computed) */
+    ssx_eval_bbar(ssx);
+    skip: /* compute simplex multipliers */
+    ssx_eval_pi(ssx);
+    /* compute reduced costs of non-basic variables */
+    ssx_eval_cbar(ssx);
+    /* if phase I failed, do not start phase II */
+    if (ret != 0) goto done;
+    /* phase II: find optimal solution */
+    ret = ssx_phase_II_debug(ssx, info);
+    switch (ret)
+    {  case 0:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("OPTIMAL SOLUTION FOUND\n");
+            ret = 0;
+            break;
+        case 1:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("PROBLEM HAS UNBOUNDED SOLUTION\n");
+            ret = 2;
+            break;
+        case 2:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("ITERATIONS LIMIT EXCEEDED; SEARCH TERMINATED\n");
+            ret = 4;
+            break;
+        case 3:
+#if 1 /* 25/XI-2017 */
+            if (ssx->msg_lev >= GLP_MSG_ALL)
+#endif
+                xprintf("TIME LIMIT EXCEEDED; SEARCH TERMINATED\n");
+            ret = 6;
+            break;
+        default:
+            xassert(ret != ret);
+    }
+    done: /* decrease the time limit by the spent amount of time */
+    if (ssx->tm_lim >= 0.0)
+#if 0
+        {  ssx->tm_lim -= utime() - ssx->tm_beg;
+#else
+    {  ssx->tm_lim -= xdifftime(xtime(), ssx->tm_beg);
+#endif
+        if (ssx->tm_lim < 0.0) ssx->tm_lim = 0.0;
+    }
+    return ret;
+}
 /* eof */

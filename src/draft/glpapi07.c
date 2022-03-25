@@ -496,4 +496,245 @@ done: /* delete the simplex solver workspace */
       return ret;
 }
 
+int glp_exact_debug(glp_prob *lp, const glp_smcp *parm, glp_dbginfo* info)
+{   glp_smcp _parm;
+    SSX *ssx;
+    int m = lp->m;
+    int n = lp->n;
+    int nnz = lp->nnz;
+    int i, j, k, type, pst, dst, ret, stat;
+    double lb, ub, prim, dual, sum;
+    if (parm == NULL)
+        parm = &_parm, glp_init_smcp((glp_smcp *)parm);
+    /* check control parameters */
+#if 1 /* 25/XI-2017 */
+    switch (parm->msg_lev)
+    {  case GLP_MSG_OFF:
+        case GLP_MSG_ERR:
+        case GLP_MSG_ON:
+        case GLP_MSG_ALL:
+        case GLP_MSG_DBG:
+            break;
+        default:
+            xerror("glp_exact: msg_lev = %d; invalid parameter\n",
+                   parm->msg_lev);
+    }
+#endif
+    if (parm->it_lim < 0)
+        xerror("glp_exact: it_lim = %d; invalid parameter\n",
+               parm->it_lim);
+    if (parm->tm_lim < 0)
+        xerror("glp_exact: tm_lim = %d; invalid parameter\n",
+               parm->tm_lim);
+    /* the problem must have at least one row and one column */
+    if (!(m > 0 && n > 0))
+#if 0 /* 25/XI-2017 */
+        {  xprintf("glp_exact: problem has no rows/columns\n");
+#else
+    {  if (parm->msg_lev >= GLP_MSG_ERR)
+            xprintf("glp_exact: problem has no rows/columns\n");
+#endif
+        return GLP_EFAIL;
+    }
+#if 1
+    /* basic solution is currently undefined */
+    lp->pbs_stat = lp->dbs_stat = GLP_UNDEF;
+    lp->obj_val = 0.0;
+    lp->some = 0;
+#endif
+    /* check that all double-bounded variables have correct bounds */
+    for (k = 1; k <= m+n; k++)
+    {  if (k <= m)
+        {  type = lp->row[k]->type;
+            lb = lp->row[k]->lb;
+            ub = lp->row[k]->ub;
+        }
+        else
+        {  type = lp->col[k-m]->type;
+            lb = lp->col[k-m]->lb;
+            ub = lp->col[k-m]->ub;
+        }
+        if (type == GLP_DB && lb >= ub)
+#if 0 /* 25/XI-2017 */
+            {  xprintf("glp_exact: %s %d has invalid bounds\n",
+               k <= m ? "row" : "column", k <= m ? k : k-m);
+#else
+        {  if (parm->msg_lev >= GLP_MSG_ERR)
+                xprintf("glp_exact: %s %d has invalid bounds\n",
+                        k <= m ? "row" : "column", k <= m ? k : k-m);
+#endif
+            return GLP_EBOUND;
+        }
+    }
+    /* create the simplex solver workspace */
+#if 1 /* 25/XI-2017 */
+    if (parm->msg_lev >= GLP_MSG_ALL)
+    {
+#endif
+        xprintf("glp_exact: %d rows, %d columns, %d non-zeros\n",
+                m, n, nnz);
+#ifdef HAVE_GMP
+        xprintf("GNU MP bignum library is being used\n");
+#else
+        xprintf("GLPK bignum module is being used\n");
+        xprintf("(Consider installing GNU MP to attain a much better perf"
+                "ormance.)\n");
+#endif
+#if 1 /* 25/XI-2017 */
+    }
+#endif
+    ssx = ssx_create(m, n, nnz);
+    /* load LP problem data into the workspace */
+    load_data(ssx, lp);
+    /* load current LP basis into the workspace */
+    if (load_basis(ssx, lp))
+#if 0 /* 25/XI-2017 */
+        {  xprintf("glp_exact: initial LP basis is invalid\n");
+#else
+    {  if (parm->msg_lev >= GLP_MSG_ERR)
+            xprintf("glp_exact: initial LP basis is invalid\n");
+#endif
+        ret = GLP_EBADB;
+        goto done;
+    }
+#if 0
+    /* inherit some control parameters from the LP object */
+      ssx->it_lim = lpx_get_int_parm(lp, LPX_K_ITLIM);
+      ssx->it_cnt = lpx_get_int_parm(lp, LPX_K_ITCNT);
+      ssx->tm_lim = lpx_get_real_parm(lp, LPX_K_TMLIM);
+#else
+#if 1 /* 25/XI-2017 */
+    ssx->msg_lev = parm->msg_lev;
+#endif
+    ssx->it_lim = parm->it_lim;
+    ssx->it_cnt = lp->it_cnt;
+    ssx->tm_lim = (double)parm->tm_lim / 1000.0;
+#endif
+    ssx->out_frq = 5.0;
+    ssx->tm_beg = xtime();
+#if 0 /* 10/VI-2013 */
+    ssx->tm_lag = xlset(0);
+#else
+    ssx->tm_lag = 0.0;
+#endif
+    /* solve LP */
+    info->updated = 0;
+    ret = ssx_driver_debug(ssx, info);
+#if 0
+    /* copy back some statistics to the LP object */
+      lpx_set_int_parm(lp, LPX_K_ITLIM, ssx->it_lim);
+      lpx_set_int_parm(lp, LPX_K_ITCNT, ssx->it_cnt);
+      lpx_set_real_parm(lp, LPX_K_TMLIM, ssx->tm_lim);
+#else
+    lp->it_cnt = ssx->it_cnt;
+#endif
+    /* analyze the return code */
+    switch (ret)
+    {  case 0:
+            /* optimal solution found */
+            ret = 0;
+            pst = dst = GLP_FEAS;
+            break;
+        case 1:
+            /* problem has no feasible solution */
+            ret = 0;
+            pst = GLP_NOFEAS, dst = GLP_INFEAS;
+            break;
+        case 2:
+            /* problem has unbounded solution */
+            ret = 0;
+            pst = GLP_FEAS, dst = GLP_NOFEAS;
+#if 1
+            xassert(1 <= ssx->q && ssx->q <= n);
+            lp->some = ssx->Q_col[m + ssx->q];
+            xassert(1 <= lp->some && lp->some <= m+n);
+#endif
+            break;
+        case 3:
+            /* iteration limit exceeded (phase I) */
+            ret = GLP_EITLIM;
+            pst = dst = GLP_INFEAS;
+            break;
+        case 4:
+            /* iteration limit exceeded (phase II) */
+            ret = GLP_EITLIM;
+            pst = GLP_FEAS, dst = GLP_INFEAS;
+            break;
+        case 5:
+            /* time limit exceeded (phase I) */
+            ret = GLP_ETMLIM;
+            pst = dst = GLP_INFEAS;
+            break;
+        case 6:
+            /* time limit exceeded (phase II) */
+            ret = GLP_ETMLIM;
+            pst = GLP_FEAS, dst = GLP_INFEAS;
+            break;
+        case 7:
+            /* initial basis matrix is singular */
+            ret = GLP_ESING;
+            goto done;
+        default:
+            xassert(ret != ret);
+    }
+    /* store final basic solution components into LP object */
+    lp->pbs_stat = pst;
+    lp->dbs_stat = dst;
+    sum = lp->c0;
+    for (k = 1; k <= m+n; k++)
+    {  if (ssx->stat[k] == SSX_BS)
+        {  i = ssx->Q_row[k]; /* x[k] = xB[i] */
+            xassert(1 <= i && i <= m);
+            stat = GLP_BS;
+            prim = mpq_get_d(ssx->bbar[i]);
+            dual = 0.0;
+        }
+        else
+        {  j = ssx->Q_row[k] - m; /* x[k] = xN[j] */
+            xassert(1 <= j && j <= n);
+            switch (ssx->stat[k])
+            {  case SSX_NF:
+                    stat = GLP_NF;
+                    prim = 0.0;
+                    break;
+                case SSX_NL:
+                    stat = GLP_NL;
+                    prim = mpq_get_d(ssx->lb[k]);
+                    break;
+                case SSX_NU:
+                    stat = GLP_NU;
+                    prim = mpq_get_d(ssx->ub[k]);
+                    break;
+                case SSX_NS:
+                    stat = GLP_NS;
+                    prim = mpq_get_d(ssx->lb[k]);
+                    break;
+                default:
+                    xassert(ssx != ssx);
+            }
+            dual = mpq_get_d(ssx->cbar[j]);
+        }
+        if (k <= m)
+        {  glp_set_row_stat(lp, k, stat);
+            lp->row[k]->prim = prim;
+            lp->row[k]->dual = dual;
+        }
+        else
+        {  glp_set_col_stat(lp, k-m, stat);
+            lp->col[k-m]->prim = prim;
+            lp->col[k-m]->dual = dual;
+            sum += lp->col[k-m]->coef * prim;
+        }
+    }
+    lp->obj_val = sum;
+    done: /* delete the simplex solver workspace */
+    ssx_delete(ssx);
+#if 1 /* 23/XI-2015 */
+    xassert(gmp_pool_count() == 0);
+    gmp_free_mem();
+#endif
+    /* return to the application program */
+    return ret;
+}
+
 /* eof */

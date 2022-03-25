@@ -432,6 +432,12 @@ int ssx_phase_II(SSX *ssx);
 int ssx_driver(SSX *ssx);
 /* base driver to exact simplex method */
 
+int ssx_driver_debug(SSX *ssx, glp_dbginfo* info);
+/* base driver to exact simplex method (debug version) */
+
+int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info);
+/* find optimal solution (debug version) */
+
 #endif
 
 /* eof */

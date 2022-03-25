@@ -188,7 +188,7 @@ add_library(${LIBRARY_NAME}
 	zlib/uncompr.c
 	zlib/zio.c
 	zlib/zutil.c
-)
+        draft/glpdbginfo.c)
 
 target_include_directories(${LIBRARY_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}
@@ -206,3 +206,8 @@ target_include_directories(${LIBRARY_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}/simplex
 	${CMAKE_CURRENT_SOURCE_DIR}/zlib)
 
+if (GLPK_WITH_GMP)
+  target_compile_definitions(${LIBRARY_NAME} PRIVATE
+		  HAVE_GMP
+		  )
+endif ()

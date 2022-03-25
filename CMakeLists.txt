@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
+option(GLPK_WITH_GMP    "use GNU MP bignum library" OFF)
+
 # Define variables for library
 set(PROJECT_NAME glpk-debug)
 set(LIBRARY_NAME glpk-debug)
