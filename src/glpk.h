@@ -295,11 +295,37 @@ typedef struct {     /* CPLEX LP format control parameters */
 typedef struct glp_tran glp_tran;
 /* MathProg translator workspace */
 
-typedef struct {
+/* DEBUG INFO */
+
+typedef struct glp_dbginfo glp_dbginfo;
+
+struct glp_dbginfo {
+    size_t no_basic;
+    /* The number of basic variables */
+    size_t no_nonbasic;
+    /* The number of non-basic variables */
+    size_t no_iterations;
+    /* The number of iterations the structure has stored information about */
+
+    mpq_t *objective_values;
+    /* Value of the objective function */
+
+    int *bases;
+    /* The variables of each basic solution */
+    mpq_t *basic_values;
+    /* Array of arrays of evaluations of basic solutions */
+
+    int *nonbases;
+    /* The non-basic variables in each iteration */
+    mpq_t *nonbasic_values;
+    /* Array of arrays */
+
     int updated;
-    int m;
-    mpq_t *partial_basis;
-} glp_dbginfo;
+    /* Flag whether the information has been recently updated. */
+
+    size_t _allocated_iter;
+    /* The number of iterations the structure currently has allocated space for */
+};
 /* Store debug information about steps of the simplex method */
 
 glp_dbginfo *glp_create_dbginfo(void);
@@ -307,6 +333,11 @@ glp_dbginfo *glp_create_dbginfo(void);
 
 void glp_dbginfo_free(glp_dbginfo *info);
 /* Destroy the debug information object */
+
+void glp_dbginfo_ensure_enough_space(glp_dbginfo *info);
+/* Ensure there is enough space for next iteration. */
+
+/* DEBUG INFO END */
 
 glp_prob *glp_create_prob(void);
 /* create problem object */

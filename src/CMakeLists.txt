@@ -119,6 +119,7 @@ add_library(${LIBRARY_NAME}
 	draft/glpssx01.c
 	draft/glpssx02.c
 	draft/lux.c
+	draft/glpdbginfo.c
 	env/alloc.c
 	env/dlsup.c
 	env/env.c

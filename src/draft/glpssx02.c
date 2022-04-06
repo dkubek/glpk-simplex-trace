@@ -370,11 +370,41 @@ int ssx_phase_II(SSX *ssx)
       return ret;
 }
 
+void _dbginfo_init(glp_dbginfo *info, const SSX *ssx) {
+    info->no_basic = ssx->m;
+    info->no_nonbasic = ssx->n;
+}
+
+void _dbginfo_append_basic_values(glp_dbginfo *info, const SSX *ssx) {
+
+    xprintf("ITERATION: %d\n", info->no_iterations);
+
+    glp_dbginfo_ensure_enough_space(info);
+
+    mpq_init(info->objective_values[info->no_iterations]);
+    mpq_set(info->objective_values[info->no_iterations], ssx->bbar[0]);
+
+    for (int i = 0; i < info->no_basic; ++i) {
+        mpq_init(info->basic_values[info->no_iterations * info->no_basic + i]);
+        mpq_set(info->basic_values[info->no_iterations * info->no_basic + i],
+                ssx->bbar[i + 1]);
+    }
+    info->updated = 1;
+}
+
+void _dbginfo_append_nonbasic_values(glp_dbginfo *info, const SSX *ssx) {
+}
+
 int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
-{     int ret;
+{
+    int ret;
     /* display initial progress of the search */
     if (ssx->msg_lev >= GLP_MSG_ON)
         show_progress(ssx, 2);
+
+    // TODO: Move this up?
+    _dbginfo_init(info, ssx);
+
     /* main loop starts here */
     for (;;)
     {  /* display current progress of the search */
@@ -412,16 +442,10 @@ int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
         }
         /* update values of basic variables */
         ssx_update_bbar(ssx);
-        // Store basis information
-        info->m = ssx->m;
-        if (info->partial_basis == NULL)
-            info->partial_basis = malloc((1 + info->m) * sizeof(mpq_t));
 
-        for (int i = 0; i <= info->m; ++i) {
-            mpq_init(info->partial_basis[i]);
-            mpq_set(info->partial_basis[i], ssx->bbar[i]);
-        }
-        info->updated = 1;
+        // Store basis information
+        _dbginfo_append_basic_values(info, ssx);
+        info->no_iterations++;
 
         if (ssx->p > 0)
         {  /* compute p-th row of the inverse inv(B) */
