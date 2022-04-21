@@ -119,7 +119,7 @@ add_library(${LIBRARY_NAME}
 	draft/glpssx01.c
 	draft/glpssx02.c
 	draft/lux.c
-	draft/glpdbginfo.c
+        draft/glpssxtrace.c
 	env/alloc.c
 	env/dlsup.c
 	env/env.c
@@ -189,7 +189,7 @@ add_library(${LIBRARY_NAME}
 	zlib/uncompr.c
 	zlib/zio.c
 	zlib/zutil.c
-        draft/glpdbginfo.c)
+        draft/glpssxtrace.c)
 
 target_include_directories(${LIBRARY_NAME} PUBLIC
 	${CMAKE_CURRENT_SOURCE_DIR}

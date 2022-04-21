@@ -360,7 +360,7 @@ struct SSX
 #define ssx_eval_rho          _glp_ssx_eval_rho
 #define ssx_eval_row          _glp_ssx_eval_row
 #define ssx_eval_col          _glp_ssx_eval_col
-#define ssx_chuzc             _glp_ssx_chuzc
+#define ssx_chuzc_dantzig _glp_ssx_chuzc
 #define ssx_chuzr             _glp_ssx_chuzr
 #define ssx_update_bbar       _glp_ssx_update_bbar
 #define ssx_update_pi         _glp_ssx_update_pi
@@ -402,7 +402,10 @@ void ssx_eval_row(SSX *ssx);
 void ssx_eval_col(SSX *ssx);
 /* compute pivot column of the simplex table */
 
-void ssx_chuzc(SSX *ssx);
+int ssx_chuzc_all(SSX *ssx, int *qs, int *q_dirs);
+/* choose pivot column */
+
+void ssx_chuzc_dantzig(SSX *ssx);
 /* choose pivot column */
 
 void ssx_chuzr(SSX *ssx);
@@ -432,11 +435,11 @@ int ssx_phase_II(SSX *ssx);
 int ssx_driver(SSX *ssx);
 /* base driver to exact simplex method */
 
-int ssx_driver_debug(SSX *ssx, glp_dbginfo* info);
-/* base driver to exact simplex method (debug version) */
+int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace);
+/* base driver to exact simplex method (trace version) */
 
-int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info);
-/* find optimal solution (debug version) */
+int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace);
+/* find optimal solution (trace version) */
 
 #endif
 

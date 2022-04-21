@@ -172,7 +172,7 @@ int ssx_phase_I(SSX *ssx)
             break;
          }
          /* choose non-basic variable xN[q] */
-         ssx_chuzc(ssx);
+         ssx_chuzc_dantzig(ssx);
          /* if xN[q] cannot be chosen, the sum of infeasibilities is
             minimal but non-zero; therefore the original problem has no
             primal feasible solution */
@@ -323,7 +323,7 @@ int ssx_phase_II(SSX *ssx)
             break;
          }
          /* choose non-basic variable xN[q] */
-         ssx_chuzc(ssx);
+         ssx_chuzc_dantzig(ssx);
          /* if xN[q] cannot be chosen, the current basic solution is
             dual feasible and therefore optimal */
          if (ssx->q == 0)
@@ -370,32 +370,88 @@ int ssx_phase_II(SSX *ssx)
       return ret;
 }
 
-void _dbginfo_init(glp_dbginfo *info, const SSX *ssx) {
-    info->no_basic = ssx->m;
-    info->no_nonbasic = ssx->n;
+void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
+    trace->no_basic = ssx->m;
+    trace->no_nonbasic = ssx->n;
+
+    size_t no_variables = ssx->m + ssx->n;
+
+    trace->lb = xalloc(1 + no_variables, sizeof(mpq_t));
+    xassert(trace->lb != NULL);
+    for (int i = 1; i <= no_variables; ++i) {
+        mpq_init(trace->lb[i]);
+        mpq_set(trace->lb[i], ssx->lb[i]);
+    }
+
+    trace->ub = xalloc(1 + no_variables, sizeof(mpq_t));
+    xassert(trace->ub != NULL);
+    for (int i = 1; i <= no_variables; ++i) {
+        mpq_init(trace->ub[i]);
+        mpq_set(trace->ub[i], ssx->ub[i]);
+    }
 }
 
-void _dbginfo_append_basic_values(glp_dbginfo *info, const SSX *ssx) {
+void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
 
-    xprintf("ITERATION: %d\n", info->no_iterations);
+    glp_ssxtrace_ensure_enough_space(trace);
 
-    glp_dbginfo_ensure_enough_space(info);
+    if (trace->params.objective_trace) {
+        mpq_init(trace->objective_values[trace->no_iterations]);
+        mpq_set(trace->objective_values[trace->no_iterations], ssx->bbar[0]);
+    }
 
-    mpq_init(info->objective_values[info->no_iterations]);
-    mpq_set(info->objective_values[info->no_iterations], ssx->bbar[0]);
+    // Append basic indices
+    for (int i = 0; i < trace->no_basic; ++i) {
+        // if x[k] is xB[i], then Q_row[k] = i and Q_col[i] = k;
+        trace->bases[trace->no_iterations * trace->no_basic + i] =
+                ssx->Q_col[i + 1];
+    }
 
-    for (int i = 0; i < info->no_basic; ++i) {
-        mpq_init(info->basic_values[info->no_iterations * info->no_basic + i]);
-        mpq_set(info->basic_values[info->no_iterations * info->no_basic + i],
+    // Append basic values
+    for (int i = 0; i < trace->no_basic; ++i) {
+        mpq_init(trace->basic_values[trace->no_iterations * trace->no_basic + i]);
+        mpq_set(trace->basic_values[trace->no_iterations * trace->no_basic + i],
                 ssx->bbar[i + 1]);
     }
-    info->updated = 1;
+
+    trace->updated = 1;
 }
 
-void _dbginfo_append_nonbasic_values(glp_dbginfo *info, const SSX *ssx) {
+void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
+    glp_ssxtrace_ensure_enough_space(trace);
+
+    size_t k = trace->no_basic + trace->no_nonbasic;
+    int stat;
+    for (size_t i = 1; i <= k; ++i) {
+
+        switch (ssx->stat[i])
+        {
+            case SSX_BS:
+                stat = GLP_BS;
+                break;
+            case SSX_NF:
+                stat = GLP_NF;
+                break;
+            case SSX_NL:
+                stat = GLP_NL;
+                break;
+            case SSX_NU:
+                stat = GLP_NU;
+                break;
+            case SSX_NS:
+                stat = GLP_NS;
+                break;
+            default:
+                xassert(ssx != ssx);
+        }
+
+        trace->status[trace->no_iterations * (k + 1) + i] = stat;
+    }
+
+    trace->updated = 1;
 }
 
-int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
+int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
 {
     int ret;
     /* display initial progress of the search */
@@ -403,7 +459,15 @@ int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
         show_progress(ssx, 2);
 
     // TODO: Move this up?
-    _dbginfo_init(info, ssx);
+    ssxtrace_init(trace, ssx);
+
+    int *qs, *q_dirs;
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
+        qs = xalloc(ssx->n, sizeof(int));
+        xassert(qs != NULL);
+        q_dirs = xalloc(ssx->n, sizeof(int));
+        xassert(q_dirs != NULL);
+    }
 
     /* main loop starts here */
     for (;;)
@@ -422,30 +486,91 @@ int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
         {  ret = 3;
             break;
         }
-        /* choose non-basic variable xN[q] */
-        ssx_chuzc(ssx);
-        /* if xN[q] cannot be chosen, the current basic solution is
-           dual feasible and therefore optimal */
-        if (ssx->q == 0)
-        {  ret = 0;
-            break;
+
+        if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG) {
+            /* choose non-basic variable xN[q] */
+            ssx_chuzc_dantzig(ssx);
+            /* if xN[q] cannot be chosen, the current basic solution is
+               dual feasible and therefore optimal */
+            if (ssx->q == 0) {
+                ret = 0;
+                break;
+            }
+
+            /* compute q-th column of the simplex table */
+            ssx_eval_col(ssx);
+            /* choose basic variable xB[p] */
+            ssx_chuzr(ssx);
+            /* if xB[p] cannot be chosen, the problem has no dual feasible
+               solution (i.e. unbounded) */
+            if (ssx->p == 0) {
+                ret = 1;
+                break;
+            }
+        } else if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
+            /* choose non-basic variable xN[q] */
+            int no_candidates = ssx_chuzc_all(ssx, qs, q_dirs);
+
+            /* if xN[q] cannot be chosen, the current basic solution is
+               dual feasible and therefore optimal */
+            if (no_candidates == 0) {
+                ret = 0;
+                break;
+            }
+
+            int p_best, p_stat_best, q_best, q_dir_best;
+            mpq_t delta_best;
+            p_best = 0, p_stat_best = 0, q_best = 0, q_dir_best = 0;
+            mpq_init(delta_best);
+            mpq_set_ui(delta_best, 0, 1);
+            for (size_t i = 0; i < no_candidates; i++) {
+                ssx->q = qs[i];
+                ssx->q_dir = q_dirs[i];
+
+                /* compute q-th column of the simplex table */
+                ssx_eval_col(ssx);
+                /* choose basic variable xB[p] */
+                ssx_chuzr(ssx);
+                /* if xB[p] cannot be chosen, the problem has no dual feasible
+                   solution (i.e. unbounded) */
+                if (ssx->p == 0) {
+                    p_best = 0;
+                    break;
+                }
+
+                // TODO: Compare rationally
+                if (fabs(mpq_get_d(ssx->delta)) >=
+                    fabs(mpq_get_d(delta_best))) {
+                    mpq_set(delta_best, ssx->delta);
+                    p_best = ssx->p;
+                    p_stat_best = ssx->p_stat;
+                    q_best = ssx->q;
+                    q_dir_best = ssx->q_dir;
+                }
+            }
+
+            if (p_best == 0) {
+                ret = 1;
+                break;
+            }
+
+            // Set the best entering variable
+            ssx->q = q_best;
+            ssx->q_dir = q_dir_best;
+            ssx_eval_col(ssx);
+
+            // Set the best leaving variable
+            ssx->p = p_best;
+            ssx->p_stat = p_stat_best;
+            mpq_set(ssx->delta, delta_best);
+            mpq_clear(delta_best);
+
+        } else {
+            xassert(trace->params.pivot_rule != trace->params.pivot_rule);
         }
-        /* compute q-th column of the simplex table */
-        ssx_eval_col(ssx);
-        /* choose basic variable xB[p] */
-        ssx_chuzr(ssx);
-        /* if xB[p] cannot be chosen, the problem has no dual feasible
-           solution (i.e. unbounded) */
-        if (ssx->p == 0)
-        {  ret = 1;
-            break;
-        }
+
         /* update values of basic variables */
         ssx_update_bbar(ssx);
-
-        // Store basis information
-        _dbginfo_append_basic_values(info, ssx);
-        info->no_iterations++;
 
         if (ssx->p > 0)
         {  /* compute p-th row of the inverse inv(B) */
@@ -461,7 +586,30 @@ int ssx_phase_II_debug(SSX *ssx, glp_dbginfo* info)
         /* one simplex iteration has been performed */
         if (ssx->it_lim > 0) ssx->it_lim--;
         ssx->it_cnt++;
+
+        xprintf("ITERATION: %d\n", ssx->it_cnt);
+
+        // Store basis information
+        if (trace->params.basis_trace) {
+            ssxtrace_append_basic_values(trace, ssx);
+        }
+
+        if (trace->params.nonbasis_trace) {
+            ssxtrace_append_status(trace, ssx);
+        }
+
+        if (trace->updated) {
+            trace->no_iterations++;
+            trace->updated = 0;
+        }
+
     }
+
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
+        xfree(qs);
+        xfree(q_dirs);
+    }
+
     /* display final progress of the search */
     if (ssx->msg_lev >= GLP_MSG_ON)
         show_progress(ssx, 2);
@@ -619,7 +767,7 @@ done: /* decrease the time limit by the spent amount of time */
       return ret;
 }
 
-int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
+int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
 {   int m = ssx->m;
     int *type = ssx->type;
     mpq_t *lb = ssx->lb;
@@ -631,12 +779,8 @@ int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
     /* factorize the initial basis matrix */
 
     if (ssx_factorize(ssx))
-#if 0 /* 25/XI-2017 */
-        {  xprintf("Initial basis matrix is singular\n");
-#else
     {  if (ssx->msg_lev >= GLP_MSG_ERR)
             xprintf("Initial basis matrix is singular\n");
-#endif
         ret = 7;
         goto done;
     }
@@ -644,7 +788,7 @@ int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
     ssx_eval_bbar(ssx);
     /* check if the initial basic solution is primal feasible */
     for (i = 1; i <= m; i++)
-    {  int t;
+    {   int t;
         k = Q_col[i]; /* x[k] = xB[i] */
         t = type[k];
         if (t == SSX_LO || t == SSX_DB || t == SSX_FX)
@@ -674,23 +818,17 @@ int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
             ret = 0;
             break;
         case 1:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("PROBLEM HAS NO FEASIBLE SOLUTION\n");
             ret = 1;
             break;
         case 2:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("ITERATIONS LIMIT EXCEEDED; SEARCH TERMINATED\n");
             ret = 3;
             break;
         case 3:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("TIME LIMIT EXCEEDED; SEARCH TERMINATED\n");
             ret = 5;
             break;
@@ -707,33 +845,25 @@ int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
     /* if phase I failed, do not start phase II */
     if (ret != 0) goto done;
     /* phase II: find optimal solution */
-    ret = ssx_phase_II_debug(ssx, info);
+    ret = ssx_phase_II_trace(ssx, trace);
     switch (ret)
     {  case 0:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("OPTIMAL SOLUTION FOUND\n");
             ret = 0;
             break;
         case 1:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("PROBLEM HAS UNBOUNDED SOLUTION\n");
             ret = 2;
             break;
         case 2:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("ITERATIONS LIMIT EXCEEDED; SEARCH TERMINATED\n");
             ret = 4;
             break;
         case 3:
-#if 1 /* 25/XI-2017 */
             if (ssx->msg_lev >= GLP_MSG_ALL)
-#endif
                 xprintf("TIME LIMIT EXCEEDED; SEARCH TERMINATED\n");
             ret = 6;
             break;
@@ -742,11 +872,7 @@ int ssx_driver_debug(SSX *ssx, glp_dbginfo* info)
     }
     done: /* decrease the time limit by the spent amount of time */
     if (ssx->tm_lim >= 0.0)
-#if 0
-        {  ssx->tm_lim -= utime() - ssx->tm_beg;
-#else
     {  ssx->tm_lim -= xdifftime(xtime(), ssx->tm_beg);
-#endif
         if (ssx->tm_lim < 0.0) ssx->tm_lim = 0.0;
     }
     return ret;

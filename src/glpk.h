@@ -297,15 +297,55 @@ typedef struct glp_tran glp_tran;
 
 /* DEBUG INFO */
 
-typedef struct glp_dbginfo glp_dbginfo;
 
-struct glp_dbginfo {
+typedef struct glp_smtcp glp_smtcp;
+
+typedef struct { /* simplex trace method control parameters */
+    int objective_trace;
+#define GLP_OBJECTIVE_TRACE_OFF 0
+#define GLP_OBJECTIVE_TRACE_ON 1
+    int basis_trace;
+#define GLP_BASIS_TRACE_OFF 0
+#define GLP_BASIS_TRACE_ON 1
+    int nonbasis_trace;
+#define GLP_NONBASIS_TRACE_OFF 0
+#define GLP_NONBASIS_TRACE_ON 1
+    int complexity_trace;
+#define GLP_COMPLEXITY_TRACE_OFF 0
+#define GLP_COMPLEXITY_TRACE_ON 1
+    int pivot_rule;
+#define GLP_TRACE_PIVOT_DANTZIG 0
+#define GLP_TRACE_PIVOT_BEST 1
+} glp_stmcp;
+
+typedef struct glp_ssxtrace glp_ssxtrace;
+
+struct glp_ssxtrace {
+    glp_stmcp params;
+
     size_t no_basic;
     /* The number of basic variables */
     size_t no_nonbasic;
     /* The number of non-basic variables */
     size_t no_iterations;
     /* The number of iterations the structure has stored information about */
+
+    int *status;
+    // GLP_BS             1  /* basic variable */
+    // GLP_NL             2  /* non-basic variable on lower bound */
+    // GLP_NU             3  /* non-basic variable on upper bound */
+    // GLP_NF             4  /* non-basic free (unbounded) variable */
+    // GLP_NS             5  /* non-basic fixed variable */
+
+    mpq_t *lb; /* mpq_t lb[1+m+n]; alias: l */
+    /* lb[0] is not used;
+       lb[k], 1 <= k <= m+n, is an lower bound of variable x[k];
+       if x[k] has no lower bound, lb[k] is zero */
+    mpq_t *ub; /* mpq_t ub[1+m+n]; alias: u */
+    /* ub[0] is not used;
+       ub[k], 1 <= k <= m+n, is an upper bound of variable x[k];
+       if x[k] has no upper bound, ub[k] is zero;
+       if x[k] is of fixed type, ub[k] is equal to lb[k] */
 
     mpq_t *objective_values;
     /* Value of the objective function */
@@ -315,26 +355,23 @@ struct glp_dbginfo {
     mpq_t *basic_values;
     /* Array of arrays of evaluations of basic solutions */
 
-    int *nonbases;
-    /* The non-basic variables in each iteration */
-    mpq_t *nonbasic_values;
-    /* Array of arrays */
-
     int updated;
     /* Flag whether the information has been recently updated. */
 
     size_t _allocated_iter;
-    /* The number of iterations the structure currently has allocated space for */
+    /* The number of iterations the structure currently has allocated space for
+     */
 };
 /* Store debug information about steps of the simplex method */
 
-glp_dbginfo *glp_create_dbginfo(void);
+
+glp_ssxtrace *glp_create_ssxtrace(const glp_stmcp *para);
 /* Create a debug information object */
 
-void glp_dbginfo_free(glp_dbginfo *info);
+void glp_ssxtrace_free(glp_ssxtrace *trace);
 /* Destroy the debug information object */
 
-void glp_dbginfo_ensure_enough_space(glp_dbginfo *info);
+void glp_ssxtrace_ensure_enough_space(glp_ssxtrace *trace);
 /* Ensure there is enough space for next iteration. */
 
 /* DEBUG INFO END */
@@ -509,7 +546,7 @@ int glp_simplex(glp_prob *P, const glp_smcp *parm);
 int glp_exact(glp_prob *P, const glp_smcp *parm);
 /* solve LP problem in exact arithmetic */
 
-int glp_exact_debug(glp_prob *P, const glp_smcp *parm, glp_dbginfo *info);
+int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace);
 /* solve LP problem in exact arithmetic while storing addition
  * information about the execution of the simplex algorithm
  */

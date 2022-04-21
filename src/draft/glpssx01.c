@@ -437,7 +437,56 @@ void ssx_eval_col(SSX *ssx)
 }
 
 /*----------------------------------------------------------------------
-// ssx_chuzc - choose pivot column.
+// ssx_chuzc_all - choose pivot column.
+//
+// This routine finds all non-basic variables xN[q] whose reduced cost
+// indicate possible improving of the objective function to enter
+// in the basis.
+//
+// If xN[q] has been chosen, the routine stores its number q and also
+// the flag q_dir that indicates direction in which xN[q] has to
+// change (+1 means increasing, -1 means decreasing) in given arrays.
+//
+// If the choice cannot be made, because the current basic solution is
+// dual feasible, the routine sets the number q to 0.
+//
+// The number of possible variables is returned.
+// */
+
+int ssx_chuzc_all(SSX *ssx, int *qs, int *q_dirs)
+{   int m = ssx->m;
+    int n = ssx->n;
+    int dir = (ssx->dir == SSX_MIN ? +1 : -1);
+    int *Q_col = ssx->Q_col;
+    int *stat = ssx->stat;
+    mpq_t *cbar = ssx->cbar;
+    int j, k, s, q, q_dir, count;
+    double best, temp;
+    /* nothing is chosen so far */
+    q = 0, q_dir = 0, best = 0.0, count = 0;
+    /* look through the list of non-basic variables */
+    for (j = 1; j <= n; j++)
+    {  k = Q_col[m+j]; /* x[k] = xN[j] */
+        s = dir * mpq_sgn(cbar[j]);
+        if ((stat[k] == SSX_NF || stat[k] == SSX_NL) && s < 0 ||
+            (stat[k] == SSX_NF || stat[k] == SSX_NU) && s > 0)
+        {  /* reduced cost of xN[j] indicates possible improving of
+             the objective function */
+            temp = fabs(mpq_get_d(cbar[j]));
+            xassert(temp != 0.0);
+
+            qs[count] = j;
+            q_dirs[count] = -s;
+            count++;
+        }
+    }
+
+    //ssx->q = q, ssx->q_dir = q_dir;
+    return count;
+}
+
+/*----------------------------------------------------------------------
+// ssx_chuzc_dantzig - choose pivot column.
 //
 // This routine chooses non-basic variable xN[q] whose reduced cost
 // indicates possible improving of the objective function to enter it
@@ -454,7 +503,7 @@ void ssx_eval_col(SSX *ssx)
 // If the choice cannot be made, because the current basic solution is
 // dual feasible, the routine sets the number q to 0. */
 
-void ssx_chuzc(SSX *ssx)
+void ssx_chuzc_dantzig(SSX *ssx)
 {     int m = ssx->m;
       int n = ssx->n;
       int dir = (ssx->dir == SSX_MIN ? +1 : -1);
