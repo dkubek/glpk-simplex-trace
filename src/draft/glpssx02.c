@@ -471,7 +471,7 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
 
     /* main loop starts here */
     for (;;)
-    {  /* display current progress of the search */
+    {   /* display current progress of the search */
         if (ssx->msg_lev >= GLP_MSG_ON)
             if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
                 show_progress(ssx, 2);
@@ -524,6 +524,8 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             mpq_init(delta_best);
             mpq_set_ui(delta_best, 0, 1);
             for (size_t i = 0; i < no_candidates; i++) {
+                // set one of the candidates as a possible entering variable for
+                // ssx_eval_col and ssx_chuzr functions
                 ssx->q = qs[i];
                 ssx->q_dir = q_dirs[i];
 
@@ -538,6 +540,8 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
                     break;
                 }
 
+                // check whether we have found a greater update in objective
+                // function
                 // TODO: Compare rationally
                 if (fabs(mpq_get_d(ssx->delta)) >=
                     fabs(mpq_get_d(delta_best))) {
@@ -554,12 +558,12 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
                 break;
             }
 
-            // Set the best entering variable
+            // set the optimal entering variable
             ssx->q = q_best;
             ssx->q_dir = q_dir_best;
             ssx_eval_col(ssx);
 
-            // Set the best leaving variable
+            // set the optimal leaving variable
             ssx->p = p_best;
             ssx->p_stat = p_stat_best;
             mpq_set(ssx->delta, delta_best);

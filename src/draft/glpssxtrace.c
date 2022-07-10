@@ -62,7 +62,6 @@ glp_ssxtrace *glp_create_ssxtrace(const glp_stmcp *para) {
     return info;
 }
 
-// TODO: Deallocate mpq_t values
 void glp_ssxtrace_free(glp_ssxtrace *trace) {
 
     if (trace->status != NULL) { xfree(trace->status); }

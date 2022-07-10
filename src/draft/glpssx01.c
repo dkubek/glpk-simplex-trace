@@ -460,10 +460,10 @@ int ssx_chuzc_all(SSX *ssx, int *qs, int *q_dirs)
     int *Q_col = ssx->Q_col;
     int *stat = ssx->stat;
     mpq_t *cbar = ssx->cbar;
-    int j, k, s, q, q_dir, count;
-    double best, temp;
+    int j, k, s, count;
+    double temp;
     /* nothing is chosen so far */
-    q = 0, q_dir = 0, best = 0.0, count = 0;
+    count = 0;
     /* look through the list of non-basic variables */
     for (j = 1; j <= n; j++)
     {  k = Q_col[m+j]; /* x[k] = xN[j] */
@@ -475,13 +475,13 @@ int ssx_chuzc_all(SSX *ssx, int *qs, int *q_dirs)
             temp = fabs(mpq_get_d(cbar[j]));
             xassert(temp != 0.0);
 
+            // Add the candidate for entering variable
             qs[count] = j;
             q_dirs[count] = -s;
             count++;
         }
     }
 
-    //ssx->q = q, ssx->q_dir = q_dir;
     return count;
 }
 
