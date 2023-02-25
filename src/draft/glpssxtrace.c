@@ -26,11 +26,18 @@
 #define SSXTRACE_DEAFULT_ITERATION_SPACE 8
 
 glp_stmcp DEFAULT_STMCP = {
+        .store_mem = GLP_STORE_TRACE_MEM_OFF,
+
         .basis_trace = GLP_BASIS_TRACE_OFF,
         .nonbasis_trace = GLP_NONBASIS_TRACE_OFF,
         .complexity_trace = GLP_COMPLEXITY_TRACE_ON,
         .objective_trace = GLP_OBJECTIVE_TRACE_ON,
         .pivot_rule = GLP_TRACE_PIVOT_DANTZIG,
+
+        .info_file_basename = {'\0'},
+        .objective_values_file_basename = {'\0'},
+        .status_file_basename = {'\0'},
+        .variable_values_file_basename = {'\0'},
 };
 
 glp_ssxtrace *glp_create_ssxtrace(const glp_stmcp *para) {
@@ -58,6 +65,30 @@ glp_ssxtrace *glp_create_ssxtrace(const glp_stmcp *para) {
     info->_allocated_iter = 0;
 
     info->updated = 0;
+
+    info->info_fptr = NULL;
+    if (strlen(para->info_file_basename) > 0) {
+        info->info_fptr = fopen(para->info_file_basename, "w");
+        xassert(info->info_fptr != NULL);
+    }
+
+    info->status_fptr = NULL;
+    if (strlen(para->status_file_basename) > 0) {
+        info->status_fptr = fopen(para->status_file_basename, "w");
+        xassert(info->status_fptr != NULL);
+    }
+
+    info->objective_values_fptr = NULL;
+    if (strlen(para->objective_values_file_basename) > 0) {
+        info->objective_values_fptr = fopen(para->objective_values_file_basename, "w");
+        xassert(info->objective_values_fptr != NULL);
+    }
+
+    info->variable_values_fptr = NULL;
+    if (strlen(para->variable_values_file_basename) > 0) {
+        info->variable_values_fptr = fopen(para->variable_values_file_basename, "w");
+        xassert(info->variable_values_fptr != NULL);
+    }
 
     return info;
 }
@@ -97,6 +128,18 @@ void glp_ssxtrace_free(glp_ssxtrace *trace) {
 
         xfree(trace->objective_values);
     }
+
+    if (trace->info_fptr != NULL)
+        fclose(trace->info_fptr);
+
+    if (trace->objective_values_fptr != NULL)
+        fclose(trace->objective_values_fptr);
+
+    if (trace->status_fptr != NULL)
+        fclose(trace->status_fptr);
+
+    if (trace->variable_values_fptr != NULL)
+        fclose(trace->variable_values_fptr);
 }
 
 /* Ensure that there is enough space allocated for next iteration

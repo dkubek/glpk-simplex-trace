@@ -389,16 +389,26 @@ void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
         mpq_init(trace->ub[i]);
         mpq_set(trace->ub[i], ssx->ub[i]);
     }
+
+    // TODO : Initialize names
+    // NOTE: This seems to be inaccessible from this scope
+}
+
+void ssxtrace_append_objective_values_file(glp_ssxtrace *trace, const SSX *ssx) {
+    gmp_fprintf(trace->objective_values_fptr, "%Qd\n", ssx->bbar[0]);
+}
+
+void ssxtrace_append_objective_values(glp_ssxtrace *trace, const SSX *ssx) {
+    glp_ssxtrace_ensure_enough_space(trace);
+
+    mpq_init(trace->objective_values[trace->no_iterations]);
+    mpq_set(trace->objective_values[trace->no_iterations], ssx->bbar[0]);
+
+    trace->updated = 1;
 }
 
 void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
-
     glp_ssxtrace_ensure_enough_space(trace);
-
-    if (trace->params.objective_trace) {
-        mpq_init(trace->objective_values[trace->no_iterations]);
-        mpq_set(trace->objective_values[trace->no_iterations], ssx->bbar[0]);
-    }
 
     // Append basic indices
     for (int i = 0; i < trace->no_basic; ++i) {
@@ -415,6 +425,82 @@ void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
     }
 
     trace->updated = 1;
+}
+
+void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
+    mpq_t* value;
+    int basic_index;
+    size_t no_variables = trace->no_basic + trace->no_nonbasic;
+    // Append basic values
+    for (int k = 1; k <= no_variables; ++k) {
+        // stat[k], 1 <= k <= m+n, is the status of variable x[k]:
+        int s = ssx->stat[k];
+
+        switch (s) {
+            case SSX_BS:
+                /* basic variable */
+                // if x[k] is xB[i], then Q_row[k] = i and Q_col[i] = k;
+                basic_index = ssx->Q_row[k];
+                value = &ssx->bbar[basic_index];
+                break;
+            case SSX_NL:
+                /* non-basic variable on lower bound */
+                value = &ssx->lb[k];
+                break;
+            case SSX_NU:
+                /* non-basic variable on upper bound */
+                value = &ssx->ub[k];
+                break;
+            case SSX_NF:
+                /* non-basic free variable */
+                value = NULL;
+                break;
+            case SSX_NS:
+                /* non-basic fixed variable */
+                value = &ssx->lb[k];
+                break;
+            default:
+                xassert(s != s);
+        }
+        if (value)
+            gmp_fprintf(trace->variable_values_fptr, "%Qd ", *value);
+        else
+            fprintf(trace->variable_values_fptr, "NaN ");
+    }
+    fprintf(trace->variable_values_fptr, "\n");
+}
+
+void ssxtrace_append_status_file(glp_ssxtrace *trace, const SSX *ssx) {
+    xassert(trace->status_fptr != NULL);
+
+    size_t k = trace->no_basic + trace->no_nonbasic;
+    int stat;
+    for (size_t i = 1; i <= k; ++i) {
+
+        switch (ssx->stat[i])
+        {
+            case SSX_BS:
+                stat = GLP_BS;
+                break;
+            case SSX_NF:
+                stat = GLP_NF;
+                break;
+            case SSX_NL:
+                stat = GLP_NL;
+                break;
+            case SSX_NU:
+                stat = GLP_NU;
+                break;
+            case SSX_NS:
+                stat = GLP_NS;
+                break;
+            default:
+                xassert(ssx != ssx);
+        }
+
+        fprintf(trace->status_fptr, "%d ", stat);
+    }
+    fprintf(trace->status_fptr, "\n");
 }
 
 void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
@@ -475,6 +561,7 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
         if (ssx->msg_lev >= GLP_MSG_ON)
             if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
                 show_progress(ssx, 2);
+
         /* check if the iterations limit has been exhausted */
         if (ssx->it_lim == 0)
         {  ret = 2;
@@ -591,15 +678,34 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
         if (ssx->it_lim > 0) ssx->it_lim--;
         ssx->it_cnt++;
 
-        xprintf("ITERATION: %d\n", ssx->it_cnt);
+        if (ssx->msg_lev >= GLP_MSG_OFF)
+            xprintf("ITERATION: %d\n", ssx->it_cnt);
 
         // Store basis information
         if (trace->params.basis_trace) {
-            ssxtrace_append_basic_values(trace, ssx);
+            if (trace->params.store_mem)
+                ssxtrace_append_basic_values(trace, ssx);
+
+            if (trace->variable_values_fptr)
+                ssxtrace_append_variable_values_file(trace, ssx);
+        }
+
+        // Store objective value
+        if (trace->params.objective_trace) {
+            if (trace->params.store_mem)
+                ssxtrace_append_objective_values(trace, ssx);
+
+            if (trace->objective_values_fptr)
+                ssxtrace_append_objective_values_file(trace, ssx);
         }
 
         if (trace->params.nonbasis_trace) {
-            ssxtrace_append_status(trace, ssx);
+            if (trace->params.store_mem)
+                ssxtrace_append_status(trace, ssx);
+
+            if (trace->status_fptr) {
+                ssxtrace_append_status_file(trace, ssx);
+            }
         }
 
         if (trace->updated) {

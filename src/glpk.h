@@ -27,6 +27,7 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include "mygmp.h"
 
 #ifdef __cplusplus
@@ -301,21 +302,37 @@ typedef struct glp_tran glp_tran;
 typedef struct glp_smtcp glp_smtcp;
 
 typedef struct { /* simplex trace method control parameters */
+#define GLP_STORE_TRACE_MEM_OFF 0
+#define GLP_STORE_TRACE_MEM_ON 1
+    int store_mem;
+    /* Flag whether to store information in a memory. */
+
     int objective_trace;
 #define GLP_OBJECTIVE_TRACE_OFF 0
 #define GLP_OBJECTIVE_TRACE_ON 1
+
     int basis_trace;
 #define GLP_BASIS_TRACE_OFF 0
 #define GLP_BASIS_TRACE_ON 1
+
     int nonbasis_trace;
 #define GLP_NONBASIS_TRACE_OFF 0
 #define GLP_NONBASIS_TRACE_ON 1
+
     int complexity_trace;
 #define GLP_COMPLEXITY_TRACE_OFF 0
 #define GLP_COMPLEXITY_TRACE_ON 1
+
     int pivot_rule;
 #define GLP_TRACE_PIVOT_DANTZIG 0
 #define GLP_TRACE_PIVOT_BEST 1
+
+#define GLP_STMCP_FILENAME_SIZE 2048
+    char info_file_basename[GLP_STMCP_FILENAME_SIZE];
+    char objective_values_file_basename[GLP_STMCP_FILENAME_SIZE];
+    char status_file_basename[GLP_STMCP_FILENAME_SIZE];
+    char variable_values_file_basename[GLP_STMCP_FILENAME_SIZE];
+
 } glp_stmcp;
 
 typedef struct glp_ssxtrace glp_ssxtrace;
@@ -355,12 +372,28 @@ struct glp_ssxtrace {
     mpq_t *basic_values;
     /* Array of arrays of evaluations of basic solutions */
 
+    FILE* info_fptr;
+    /* Contains general information about the problem
+     *  - no variables
+     *  - no iterations
+     *  - rule used
+     *  - upper and lower bound for each variable
+     *  */
+    FILE* status_fptr;
+    /* File pointer to a file where the variables of basic solutions should
+     * be stored */
+    FILE* variable_values_fptr;
+    /* File pointer to a file where values of basic variables should
+     * be stored */
+    FILE* objective_values_fptr;
+    /* File pointer to a file where objective values for each iteration
+     * should be stored */
+
     int updated;
     /* Flag whether the information has been recently updated. */
 
     size_t _allocated_iter;
-    /* The number of iterations the structure currently has allocated space for
-     */
+    /* The number of iterations the structure currently has allocated space for */
 };
 /* Store debug information about steps of the simplex method */
 
