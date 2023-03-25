@@ -533,6 +533,51 @@ void ssx_chuzc_dantzig(SSX *ssx)
 }
 
 /*----------------------------------------------------------------------
+// ssx_chuzc_bland - choose pivot column.
+//
+// This routine chooses non-basic variable xN[q] whose reduced cost
+// indicates possible improving of the objective function to enter it
+// in the basis.
+//
+// The  is used, i.e. that non-basic variable is preferred which has reduced cost
+// (in // magnitude) and smallest possible index.
+//
+// If xN[q] has been chosen, the routine stores its number q and also
+// sets the flag q_dir that indicates direction in which xN[q] has to
+// change (+1 means increasing, -1 means decreasing).
+//
+// If the choice cannot be made, because the current basic solution is
+// dual feasible, the routine sets the number q to 0. */
+void ssx_chuzc_bland(SSX *ssx)
+{   int m = ssx->m;
+    int n = ssx->n;
+    int dir = (ssx->dir == SSX_MIN ? +1 : -1);
+    int *Q_col = ssx->Q_col;
+    int *stat = ssx->stat;
+    mpq_t *cbar = ssx->cbar;
+    int j, k, s, q, q_dir;
+    int best;
+    /* nothing is chosen so far */
+    q = 0, q_dir = 0, best = 0;
+    /* look through the list of non-basic variables */
+    for (j = 1; j <= n; j++)
+    {  k = Q_col[m+j]; /* x[k] = xN[j] */
+        s = dir * mpq_sgn(cbar[j]);
+        if ((stat[k] == SSX_NF || stat[k] == SSX_NL) && s < 0 ||
+            (stat[k] == SSX_NF || stat[k] == SSX_NU) && s > 0)
+        {
+            /*
+             * Choose improving variable with lowest index
+             */
+            if (q == 0 || k < best)
+                q = j, q_dir = - s, best = k;
+        }
+    }
+    ssx->q = q, ssx->q_dir = q_dir;
+    return;
+}
+
+/*----------------------------------------------------------------------
 // ssx_chuzr - choose pivot row.
 //
 // This routine looks through elements of q-th column of the simplex

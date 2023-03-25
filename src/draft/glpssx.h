@@ -360,7 +360,7 @@ struct SSX
 #define ssx_eval_rho          _glp_ssx_eval_rho
 #define ssx_eval_row          _glp_ssx_eval_row
 #define ssx_eval_col          _glp_ssx_eval_col
-#define ssx_chuzc_dantzig _glp_ssx_chuzc
+#define ssx_chuzc_dantzig     _glp_ssx_chuzc
 #define ssx_chuzr             _glp_ssx_chuzr
 #define ssx_update_bbar       _glp_ssx_update_bbar
 #define ssx_update_pi         _glp_ssx_update_pi
@@ -403,10 +403,13 @@ void ssx_eval_col(SSX *ssx);
 /* compute pivot column of the simplex table */
 
 int ssx_chuzc_all(SSX *ssx, int *qs, int *q_dirs);
-/* choose pivot column */
+/* choose all possible pivot columns */
+
+void ssx_chuzc_bland(SSX *ssx);
+/* choose pivot column according to Bland's rule */
 
 void ssx_chuzc_dantzig(SSX *ssx);
-/* choose pivot column */
+/* choose pivot column according to standard (textbook) rule */
 
 void ssx_chuzr(SSX *ssx);
 /* choose pivot row */

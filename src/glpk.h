@@ -326,6 +326,8 @@ typedef struct { /* simplex trace method control parameters */
     int pivot_rule;
 #define GLP_TRACE_PIVOT_DANTZIG 0
 #define GLP_TRACE_PIVOT_BEST 1
+#define GLP_TRACE_PIVOT_BLAND 2
+#define GLP_TRACE_PIVOT_RANDOM 3
 
 #define GLP_STMCP_FILENAME_SIZE 2048
     char info_file_basename[GLP_STMCP_FILENAME_SIZE];

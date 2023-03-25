@@ -548,12 +548,17 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
     ssxtrace_init(trace, ssx);
 
     int *qs, *q_dirs;
-    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
+        trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
         qs = xalloc(ssx->n, sizeof(int));
         xassert(qs != NULL);
         q_dirs = xalloc(ssx->n, sizeof(int));
         xassert(q_dirs != NULL);
     }
+
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM)
+        // NOTE: If this pivot is added to Phase I, this needs to be moved
+        srand(time(NULL));
 
     /* main loop starts here */
     for (;;)
@@ -574,9 +579,14 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             break;
         }
 
-        if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG) {
+        if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG ||
+            trace->params.pivot_rule == GLP_TRACE_PIVOT_BLAND) {
             /* choose non-basic variable xN[q] */
-            ssx_chuzc_dantzig(ssx);
+            if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG)
+                ssx_chuzc_dantzig(ssx);
+            else
+                ssx_chuzc_bland(ssx);
+
             /* if xN[q] cannot be chosen, the current basic solution is
                dual feasible and therefore optimal */
             if (ssx->q == 0) {
@@ -655,7 +665,41 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             ssx->p_stat = p_stat_best;
             mpq_set(ssx->delta, delta_best);
             mpq_clear(delta_best);
+        } else if (trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
+            /* choose non-basic variable xN[q] */
+            int no_candidates = ssx_chuzc_all(ssx, qs, q_dirs);
 
+            /* if xN[q] cannot be chosen, the current basic solution is
+               dual feasible and therefore optimal */
+            if (no_candidates == 0) {
+                ret = 0;
+                break;
+            }
+
+            int q, q_dir;
+            int divisor = RAND_MAX / no_candidates;
+            int randint;
+            do {
+                randint = rand() / divisor;
+            } while (randint > no_candidates - 1);
+
+            q = qs[randint];
+            q_dir = q_dirs[randint];
+
+            // set the optimal entering variable
+            ssx->q = q;
+            ssx->q_dir = q_dir;
+
+            /* compute q-th column of the simplex table */
+            ssx_eval_col(ssx);
+            /* choose basic variable xB[p] */
+            ssx_chuzr(ssx);
+            /* if xB[p] cannot be chosen, the problem has no dual feasible
+               solution (i.e. unbounded) */
+            if (ssx->p == 0) {
+                ret = 1;
+                break;
+            }
         } else {
             xassert(trace->params.pivot_rule != trace->params.pivot_rule);
         }
@@ -715,7 +759,8 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
 
     }
 
-    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
+        trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
         xfree(qs);
         xfree(q_dirs);
     }
