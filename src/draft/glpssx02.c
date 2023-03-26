@@ -448,7 +448,7 @@ void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
 void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
     mpq_t* value;
     int basic_index;
-    size_t no_variables = trace->no_basic + trace->no_nonbasic;
+    size_t no_variables = ssx->m + ssx->n;
 
     mpz_t num, den;
     size_t bits = 0;
@@ -517,7 +517,7 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
 void ssxtrace_append_status_file(glp_ssxtrace *trace, const SSX *ssx) {
     xassert(trace->status_fptr != NULL);
 
-    size_t k = trace->no_basic + trace->no_nonbasic;
+    size_t k = ssx->m + ssx->n;
     int stat;
     for (size_t i = 1; i <= k; ++i) {
 
@@ -550,7 +550,7 @@ void ssxtrace_append_status_file(glp_ssxtrace *trace, const SSX *ssx) {
 void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
     glp_ssxtrace_ensure_enough_space(trace);
 
-    size_t k = trace->no_basic + trace->no_nonbasic;
+    size_t k = ssx->m + ssx->n;
     int stat;
     for (size_t i = 1; i <= k; ++i) {
 
@@ -581,48 +581,66 @@ void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
     trace->updated = 1;
 }
 
-int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
-{
-    int ret;
-    /* display initial progress of the search */
-    if (ssx->msg_lev >= GLP_MSG_ON)
-        show_progress(ssx, 2);
-
-    // TODO: Move this up?
-    ssxtrace_init(trace, ssx);
-
-    int *qs, *q_dirs;
+void setup_pivoting(const SSX *ssx, const glp_ssxtrace *trace, int **qs,
+                    int **q_dirs) {
     if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
         trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
-        qs = xalloc(ssx->n, sizeof(int));
-        xassert(qs != NULL);
-        q_dirs = xalloc(ssx->n, sizeof(int));
-        xassert(q_dirs != NULL);
+        (*qs) = xalloc(ssx->n, sizeof(int));
+        xassert((*qs) != NULL);
+        (*q_dirs) = xalloc(ssx->n, sizeof(int));
+        xassert((*q_dirs) != NULL);
     }
 
     if (trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM)
         // NOTE: If this pivot is added to Phase I, this needs to be moved
         srand(time(NULL));
+}
+void teardown_pivoting(const glp_ssxtrace *trace, int *qs, int *q_dirs) {
+    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
+        trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
+        xfree(qs);
+        xfree(q_dirs);
+    }
+}
 
-    /* main loop starts here */
-    for (;;)
-    {   /* display current progress of the search */
-        if (ssx->msg_lev >= GLP_MSG_ON)
-            if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
-                show_progress(ssx, 2);
+void print_phase_separator(glp_ssxtrace *trace) {// Separate phases
+    if (trace->params.basis_trace) {
+        if (trace->variable_values_fptr)
+            fprintf(trace->variable_values_fptr, "---\n");
+    }
 
-        /* check if the iterations limit has been exhausted */
-        if (ssx->it_lim == 0)
-        {  ret = 2;
-            break;
+    if (trace->params.objective_trace) {
+        if (trace->objective_values_fptr)
+            fprintf(trace->objective_values_fptr, "---\n");
+    }
+
+    if (trace->params.nonbasis_trace) {
+        if (trace->status_fptr) {
+            fprintf(trace->status_fptr, "---\n");
         }
-        /* check if the time limit has been exhausted */
-        if (ssx->tm_lim >= 0.0 &&
-            ssx->tm_lim <= xdifftime(xtime(), ssx->tm_beg))
-        {  ret = 3;
-            break;
+    }
+}
+void store_values(const SSX *ssx,
+                  glp_ssxtrace *trace) {// Store basis information
+    if (trace->params.basis_trace) {
+        if (trace->variable_values_fptr)
+            ssxtrace_append_variable_values_file(trace, ssx);
+    }
+
+    // Store objective value
+        if (trace->params.objective_trace) {
+            if (trace->objective_values_fptr)
+                ssxtrace_append_objective_values_file(trace, ssx);
         }
 
+        if (trace->params.nonbasis_trace) {
+            if (trace->status_fptr) {
+                ssxtrace_append_status_file(trace, ssx);
+            }
+        }
+}
+void pivot(SSX *ssx, const glp_ssxtrace *trace, int *qs, int *q_dirs, int *ret,
+           int *should_break) {
         if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG ||
             trace->params.pivot_rule == GLP_TRACE_PIVOT_BLAND) {
             /* choose non-basic variable xN[q] */
@@ -634,8 +652,9 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             /* if xN[q] cannot be chosen, the current basic solution is
                dual feasible and therefore optimal */
             if (ssx->q == 0) {
-                ret = 0;
-                break;
+                (*ret) = 0;
+                (*should_break) = 1;
+                return;
             }
 
             /* compute q-th column of the simplex table */
@@ -645,8 +664,9 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             /* if xB[p] cannot be chosen, the problem has no dual feasible
                solution (i.e. unbounded) */
             if (ssx->p == 0) {
-                ret = 1;
-                break;
+                (*ret) = 1;
+                (*should_break) = 1;
+                return;
             }
         } else if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST) {
             /* choose non-basic variable xN[q] */
@@ -655,8 +675,9 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             /* if xN[q] cannot be chosen, the current basic solution is
                dual feasible and therefore optimal */
             if (no_candidates == 0) {
-                ret = 0;
-                break;
+                (*ret) = 0;
+                (*should_break) = 1;
+                return;
             }
 
             int p_best, p_stat_best, q_best, q_dir_best;
@@ -678,7 +699,8 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
                    solution (i.e. unbounded) */
                 if (ssx->p == 0) {
                     p_best = 0;
-                    break;
+                    (*should_break) = 1;
+                    return;
                 }
 
                 // check whether we have found a greater update in objective
@@ -695,8 +717,9 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             }
 
             if (p_best == 0) {
-                ret = 1;
-                break;
+                (*ret) = 1;
+                (*should_break) = 1;
+                return;
             }
 
             // set the optimal entering variable
@@ -716,8 +739,9 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             /* if xN[q] cannot be chosen, the current basic solution is
                dual feasible and therefore optimal */
             if (no_candidates == 0) {
-                ret = 0;
-                break;
+                (*ret) = 0;
+                (*should_break) = 1;
+                return;
             }
 
             int q, q_dir;
@@ -741,12 +765,277 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
             /* if xB[p] cannot be chosen, the problem has no dual feasible
                solution (i.e. unbounded) */
             if (ssx->p == 0) {
-                ret = 1;
-                break;
+                (*ret) = 1;
+                (*should_break) = 1;
+                return;
             }
         } else {
             xassert(trace->params.pivot_rule != trace->params.pivot_rule);
         }
+}
+int ssx_phase_I_trace(SSX *ssx, glp_ssxtrace *trace)
+{   int m = ssx->m;
+    int n = ssx->n;
+    int *type = ssx->type;
+    mpq_t *lb = ssx->lb;
+    mpq_t *ub = ssx->ub;
+    mpq_t *coef = ssx->coef;
+    int *A_ptr = ssx->A_ptr;
+    int *A_ind = ssx->A_ind;
+    mpq_t *A_val = ssx->A_val;
+    int *Q_col = ssx->Q_col;
+    mpq_t *bbar = ssx->bbar;
+    mpq_t *pi = ssx->pi;
+    mpq_t *cbar = ssx->cbar;
+    int *orig_type, orig_dir;
+    mpq_t *orig_lb, *orig_ub, *orig_coef;
+    int i, k, ret;
+
+    // Setup trace
+    ssxtrace_init(trace, ssx);
+
+    /* save components of the original LP problem, which are changed
+       by the routine */
+    orig_type = xcalloc(1+m+n, sizeof(int));
+    orig_lb = xcalloc(1+m+n, sizeof(mpq_t));
+    orig_ub = xcalloc(1+m+n, sizeof(mpq_t));
+    orig_coef = xcalloc(1+m+n, sizeof(mpq_t));
+    for (k = 1; k <= m+n; k++)
+    {  orig_type[k] = type[k];
+        mpq_init(orig_lb[k]);
+        mpq_set(orig_lb[k], lb[k]);
+        mpq_init(orig_ub[k]);
+        mpq_set(orig_ub[k], ub[k]);
+    }
+    orig_dir = ssx->dir;
+    for (k = 0; k <= m+n; k++)
+    {  mpq_init(orig_coef[k]);
+        mpq_set(orig_coef[k], coef[k]);
+    }
+    /* build an artificial basic solution, which is primal feasible,
+       and also build an auxiliary objective function to minimize the
+       sum of infeasibilities for the original problem */
+    ssx->dir = SSX_MIN;
+    for (k = 0; k <= m+n; k++) mpq_set_si(coef[k], 0, 1);
+    mpq_set_si(bbar[0], 0, 1);
+    for (i = 1; i <= m; i++)
+    {  int t;
+        k = Q_col[i]; /* x[k] = xB[i] */
+        t = type[k];
+        if (t == SSX_LO || t == SSX_DB || t == SSX_FX)
+        {  /* in the original problem x[k] has lower bound */
+            if (mpq_cmp(bbar[i], lb[k]) < 0)
+            {  /* which is violated */
+                type[k] = SSX_UP;
+                mpq_set(ub[k], lb[k]);
+                mpq_set_si(lb[k], 0, 1);
+                mpq_set_si(coef[k], -1, 1);
+                mpq_add(bbar[0], bbar[0], ub[k]);
+                mpq_sub(bbar[0], bbar[0], bbar[i]);
+            }
+        }
+        if (t == SSX_UP || t == SSX_DB || t == SSX_FX)
+        {  /* in the original problem x[k] has upper bound */
+            if (mpq_cmp(bbar[i], ub[k]) > 0)
+            {  /* which is violated */
+                type[k] = SSX_LO;
+                mpq_set(lb[k], ub[k]);
+                mpq_set_si(ub[k], 0, 1);
+                mpq_set_si(coef[k], +1, 1);
+                mpq_add(bbar[0], bbar[0], bbar[i]);
+                mpq_sub(bbar[0], bbar[0], lb[k]);
+            }
+        }
+    }
+    /* now the initial basic solution should be primal feasible due
+       to changes of bounds of some basic variables, which turned to
+       implicit artifical variables */
+    /* compute simplex multipliers and reduced costs */
+    ssx_eval_pi(ssx);
+    ssx_eval_cbar(ssx);
+    /* display initial progress of the search */
+    if (ssx->msg_lev >= GLP_MSG_ON)
+        show_progress(ssx, 1);
+
+
+    int *qs;
+    int *q_dirs;
+    setup_pivoting(ssx, trace, &qs, &q_dirs);
+
+    /* main loop starts here */
+    int should_break = 0;
+    for (;;)
+    {  /* display current progress of the search */
+        if (ssx->msg_lev >= GLP_MSG_ON)
+            if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
+                show_progress(ssx, 1);
+        /* we do not need to wait until all artificial variables have
+           left the basis */
+        if (mpq_sgn(bbar[0]) == 0)
+        {  /* the sum of infeasibilities is zero, therefore the current
+             solution is primal feasible for the original problem */
+            ret = 0;
+            break;
+        }
+        /* check if the iterations limit has been exhausted */
+        if (ssx->it_lim == 0)
+        {  ret = 2;
+            break;
+        }
+        /* check if the time limit has been exhausted */
+        if (ssx->tm_lim >= 0.0 &&
+            ssx->tm_lim <= xdifftime(xtime(), ssx->tm_beg))
+        {  ret = 3;
+            break;
+        }
+
+        // Perform pivoting
+        pivot(ssx, trace, qs, q_dirs, &ret, &should_break);
+
+        if (should_break) break;
+
+        /* the sum of infeasibilities cannot be negative, therefore
+           the auxiliary lp problem cannot have unbounded solution */
+        xassert(ssx->p != 0);
+        /* update values of basic variables */
+        ssx_update_bbar(ssx);
+        if (ssx->p > 0)
+        {  /* compute p-th row of the inverse inv(B) */
+            ssx_eval_rho(ssx);
+            /* compute p-th row of the simplex table */
+            ssx_eval_row(ssx);
+            xassert(mpq_cmp(ssx->aq[ssx->p], ssx->ap[ssx->q]) == 0);
+            /* update simplex multipliers */
+            ssx_update_pi(ssx);
+            /* update reduced costs of non-basic variables */
+            ssx_update_cbar(ssx);
+        }
+        /* xB[p] is leaving the basis; if it is implicit artificial
+           variable, the corresponding residual vanishes; therefore
+           bounds of this variable should be restored to the original
+           values */
+        if (ssx->p > 0)
+        {  k = Q_col[ssx->p]; /* x[k] = xB[p] */
+            if (type[k] != orig_type[k])
+            {  /* x[k] is implicit artificial variable */
+                type[k] = orig_type[k];
+                mpq_set(lb[k], orig_lb[k]);
+                mpq_set(ub[k], orig_ub[k]);
+                xassert(ssx->p_stat == SSX_NL || ssx->p_stat == SSX_NU);
+                ssx->p_stat = (ssx->p_stat == SSX_NL ? SSX_NU : SSX_NL);
+                if (type[k] == SSX_FX) ssx->p_stat = SSX_NS;
+                /* nullify the objective coefficient at x[k] */
+                mpq_set_si(coef[k], 0, 1);
+                /* since coef[k] has been changed, we need to compute
+                   new reduced cost of x[k], which it will have in the
+                   adjacent basis */
+                /* the formula d[j] = cN[j] - pi' * N[j] is used (note
+                   that the vector pi is not changed, because it depends
+                   on objective coefficients at basic variables, but in
+                   the adjacent basis, for which the vector pi has been
+                   just recomputed, x[k] is non-basic) */
+                if (k <= m)
+                {  /* x[k] is auxiliary variable */
+                    mpq_neg(cbar[ssx->q], pi[k]);
+                }
+                else
+                {  /* x[k] is structural variable */
+                    int ptr;
+                    mpq_t temp;
+                    mpq_init(temp);
+                    mpq_set_si(cbar[ssx->q], 0, 1);
+                    for (ptr = A_ptr[k-m]; ptr < A_ptr[k-m+1]; ptr++)
+                    {  mpq_mul(temp, pi[A_ind[ptr]], A_val[ptr]);
+                        mpq_add(cbar[ssx->q], cbar[ssx->q], temp);
+                    }
+                    mpq_clear(temp);
+                }
+            }
+        }
+        /* jump to the adjacent vertex of the polyhedron */
+        ssx_change_basis(ssx);
+        /* one simplex iteration has been performed */
+        if (ssx->it_lim > 0) ssx->it_lim--;
+        ssx->it_cnt++;
+
+        if (ssx->msg_lev >= GLP_MSG_OFF)
+            xprintf("phase-I - iteration: %d\n", ssx->it_cnt);
+
+        store_values(ssx, trace);
+
+        if (trace->updated) {
+            trace->no_iterations++;
+            trace->updated = 0;
+        }
+
+    }
+    /* display final progress of the search */
+    if (ssx->msg_lev >= GLP_MSG_ON)
+        show_progress(ssx, 1);
+    /* restore components of the original problem, which were changed
+       by the routine */
+    for (k = 1; k <= m+n; k++)
+    {  type[k] = orig_type[k];
+        mpq_set(lb[k], orig_lb[k]);
+        mpq_clear(orig_lb[k]);
+        mpq_set(ub[k], orig_ub[k]);
+        mpq_clear(orig_ub[k]);
+    }
+    ssx->dir = orig_dir;
+    for (k = 0; k <= m+n; k++)
+    {  mpq_set(coef[k], orig_coef[k]);
+        mpq_clear(orig_coef[k]);
+    }
+    xfree(orig_type);
+    xfree(orig_lb);
+    xfree(orig_ub);
+    xfree(orig_coef);
+
+    print_phase_separator(trace);
+
+    teardown_pivoting(trace, qs, q_dirs);
+
+    /* return to the calling program */
+    return ret;
+}
+
+int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
+{
+    int ret;
+    /* display initial progress of the search */
+    if (ssx->msg_lev >= GLP_MSG_ON)
+        show_progress(ssx, 2);
+
+    // TODO: Move this up? or remove if its in phase I
+    ssxtrace_init(trace, ssx);
+
+    int *qs;
+    int *q_dirs;
+    setup_pivoting(ssx, trace, &qs, &q_dirs);
+
+    /* main loop starts here */
+    int should_break = 0;
+    for (;;)
+    {   /* display current progress of the search */
+        if (ssx->msg_lev >= GLP_MSG_ON)
+            if (xdifftime(xtime(), ssx->tm_lag) >= ssx->out_frq - 0.001)
+                show_progress(ssx, 2);
+
+        /* check if the iterations limit has been exhausted */
+        if (ssx->it_lim == 0)
+        {  ret = 2;
+            break;
+        }
+        /* check if the time limit has been exhausted */
+        if (ssx->tm_lim >= 0.0 &&
+            ssx->tm_lim <= xdifftime(xtime(), ssx->tm_beg))
+        {  ret = 3;
+            break;
+        }
+
+        // Perform pivoting
+        pivot(ssx, trace, qs, q_dirs, &ret, &should_break);
+        if (should_break) break;
 
         /* update values of basic variables */
         ssx_update_bbar(ssx);
@@ -767,7 +1056,7 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
         ssx->it_cnt++;
 
         if (ssx->msg_lev >= GLP_MSG_OFF)
-            xprintf("ITERATION: %d\n", ssx->it_cnt);
+            xprintf("phase II - iteration: %d\n", ssx->it_cnt);
 
         // Store basis information
         if (trace->params.basis_trace) {
@@ -803,11 +1092,7 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
 
     }
 
-    if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
-        trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
-        xfree(qs);
-        xfree(q_dirs);
-    }
+    teardown_pivoting(trace, qs, q_dirs);
 
     /* display final progress of the search */
     if (ssx->msg_lev >= GLP_MSG_ON)
@@ -1011,7 +1296,7 @@ int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
         goto skip;
     }
     /* phase I: find primal feasible solution */
-    ret = ssx_phase_I(ssx);
+    ret = ssx_phase_I_trace(ssx, trace);
     switch (ret)
     {  case 0:
             ret = 0;

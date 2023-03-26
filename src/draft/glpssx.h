@@ -444,6 +444,9 @@ int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace);
 int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace);
 /* find optimal solution (trace version) */
 
+int ssx_phase_I_trace(SSX *ssx, glp_ssxtrace *trace);
+/* find primal feasible solution (trace version) */
+
 #endif
 
 /* eof */
