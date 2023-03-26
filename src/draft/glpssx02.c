@@ -395,6 +395,24 @@ void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
 }
 
 void ssxtrace_append_objective_values_file(glp_ssxtrace *trace, const SSX *ssx) {
+    mpz_t num, den;
+    size_t bits;
+    if (trace->params.bits_only) {
+        mpz_init(num);
+        mpz_init(den);
+
+        mpq_get_den(den, ssx->bbar[0]);
+        mpq_get_num(num, ssx->bbar[0]);
+        bits = mpz_sizeinbase(den, 2) + mpz_sizeinbase(num, 2);
+
+        fprintf(trace->objective_values_fptr, "%zu\n", bits);
+
+        mpz_clear(den);
+        mpz_clear(num);
+
+        return;
+    }
+
     gmp_fprintf(trace->objective_values_fptr, "%Qd\n", ssx->bbar[0]);
 }
 
@@ -431,7 +449,14 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
     mpq_t* value;
     int basic_index;
     size_t no_variables = trace->no_basic + trace->no_nonbasic;
-    // Append basic values
+
+    mpz_t num, den;
+    size_t bits = 0;
+    if (trace->params.bits_only) {
+        mpz_init(num);
+        mpz_init(den);
+    }
+
     for (int k = 1; k <= no_variables; ++k) {
         // stat[k], 1 <= k <= m+n, is the status of variable x[k]:
         int s = ssx->stat[k];
@@ -462,11 +487,30 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
             default:
                 xassert(s != s);
         }
+
+        if (trace->params.bits_only) {
+            // Sum the number of bits for all basic variables
+            if (s != SSX_NF) {
+                mpq_get_den(den, *value);
+                mpq_get_num(num, *value);
+                bits += mpz_sizeinbase(den, 2) + mpz_sizeinbase(num, 2);
+            }
+
+            continue;
+        }
+
         if (value)
             gmp_fprintf(trace->variable_values_fptr, "%Qd ", *value);
         else
             fprintf(trace->variable_values_fptr, "NaN ");
     }
+
+    if (trace->params.bits_only) {
+        fprintf(trace->variable_values_fptr, "%zu", bits);
+        mpz_clear(den);
+        mpz_clear(num);
+    }
+
     fprintf(trace->variable_values_fptr, "\n");
 }
 

@@ -33,6 +33,7 @@ glp_stmcp DEFAULT_STMCP = {
         .complexity_trace = GLP_COMPLEXITY_TRACE_ON,
         .objective_trace = GLP_OBJECTIVE_TRACE_ON,
         .pivot_rule = GLP_TRACE_PIVOT_DANTZIG,
+        .bits_only = GLP_TRACE_BITS_ONLY_OFF,
 
         .info_file_basename = {'\0'},
         .objective_values_file_basename = {'\0'},

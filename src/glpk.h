@@ -329,6 +329,10 @@ typedef struct { /* simplex trace method control parameters */
 #define GLP_TRACE_PIVOT_BLAND 2
 #define GLP_TRACE_PIVOT_RANDOM 3
 
+    int bits_only;
+#define GLP_TRACE_BITS_ONLY_OFF 0
+#define GLP_TRACE_BITS_ONLY_ON 1
+
 #define GLP_STMCP_FILENAME_SIZE 2048
     char info_file_basename[GLP_STMCP_FILENAME_SIZE];
     char objective_values_file_basename[GLP_STMCP_FILENAME_SIZE];
