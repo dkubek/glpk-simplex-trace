@@ -315,13 +315,9 @@ typedef struct { /* simplex trace method control parameters */
 #define GLP_BASIS_TRACE_OFF 0
 #define GLP_BASIS_TRACE_ON 1
 
-    int nonbasis_trace;
-#define GLP_NONBASIS_TRACE_OFF 0
-#define GLP_NONBASIS_TRACE_ON 1
-
-    int complexity_trace;
-#define GLP_COMPLEXITY_TRACE_OFF 0
-#define GLP_COMPLEXITY_TRACE_ON 1
+    int status_trace;
+#define GLP_STATUS_TRACE_OFF 0
+#define GLP_STATUS_TRACE_ON 1
 
     int pivot_rule;
 #define GLP_TRACE_PIVOT_DANTZIG 0
@@ -329,7 +325,7 @@ typedef struct { /* simplex trace method control parameters */
 #define GLP_TRACE_PIVOT_BLAND 2
 #define GLP_TRACE_PIVOT_RANDOM 3
 
-    int bits_only;
+    int mcfglpk_bits;
 #define GLP_TRACE_BITS_ONLY_OFF 0
 #define GLP_TRACE_BITS_ONLY_ON 1
 

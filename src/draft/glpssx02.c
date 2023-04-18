@@ -370,6 +370,10 @@ int ssx_phase_II(SSX *ssx)
       return ret;
 }
 
+/*----------------------------------------------------------------------
+// ssxtrace_init - initialize the ssxtrace object
+----------------------------------------------------------------------*/
+
 void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
     trace->no_basic = ssx->m;
     trace->no_nonbasic = ssx->n;
@@ -394,18 +398,29 @@ void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
     // NOTE: This seems to be inaccessible from this scope
 }
 
+/*----------------------------------------------------------------------
+// ssxtrace_append_objective_values file
+//
+// This routine appends the current value of the objective function to
+// the objective function file (if specified).
+----------------------------------------------------------------------*/
+
 void ssxtrace_append_objective_values_file(glp_ssxtrace *trace, const SSX *ssx) {
     mpz_t num, den;
-    size_t bits;
-    if (trace->params.bits_only) {
+    size_t bits, bits_den;
+
+    // Append only the size of the bit representation
+    if (trace->params.mcfglpk_bits) {
         mpz_init(num);
         mpz_init(den);
 
         mpq_get_den(den, ssx->bbar[0]);
         mpq_get_num(num, ssx->bbar[0]);
         bits = mpz_sizeinbase(den, 2) + mpz_sizeinbase(num, 2);
+        bits_den = mpz_sizeinbase(den, 2);
 
-        fprintf(trace->objective_values_fptr, "%zu\n", bits);
+
+        gmp_fprintf(trace->objective_values_fptr, "%zu %zu\n", bits, bits_den);
 
         mpz_clear(den);
         mpz_clear(num);
@@ -413,8 +428,18 @@ void ssxtrace_append_objective_values_file(glp_ssxtrace *trace, const SSX *ssx) 
         return;
     }
 
+    // Append the whole value of the objective function
     gmp_fprintf(trace->objective_values_fptr, "%Qd\n", ssx->bbar[0]);
 }
+
+/*----------------------------------------------------------------------
+// ssxtrace_append_objective_values
+//
+// This routine appends the current value of the objective function to
+// to memory.
+//
+// Note: This traces only the values of Phase II.
+----------------------------------------------------------------------*/
 
 void ssxtrace_append_objective_values(glp_ssxtrace *trace, const SSX *ssx) {
     glp_ssxtrace_ensure_enough_space(trace);
@@ -424,6 +449,14 @@ void ssxtrace_append_objective_values(glp_ssxtrace *trace, const SSX *ssx) {
 
     trace->updated = 1;
 }
+
+/*----------------------------------------------------------------------
+// ssxtrace_append_basic_values
+//
+// This routine appends the values of the basic variables to memory.
+//
+// Note: This traces only the values of Phase II.
+----------------------------------------------------------------------*/
 
 void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
     glp_ssxtrace_ensure_enough_space(trace);
@@ -445,16 +478,30 @@ void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
     trace->updated = 1;
 }
 
+/*----------------------------------------------------------------------
+// ssxtrace_append_variable_values_file
+//
+// This routine appends the values of the variables to the variable file.
+//
+// If the special option 'mcfglpk_bits' is set. Then the bit size of the
+// bit representation of the basic values is traced. As well as maximal
+// fractionality (again only bit size).
+----------------------------------------------------------------------*/
+
 void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
-    mpq_t* value;
+    mpq_t *value;
     int basic_index;
     size_t no_variables = ssx->m + ssx->n;
 
-    mpz_t num, den;
-    size_t bits = 0;
-    if (trace->params.bits_only) {
+    mpz_t num, den, fractionality, denom_sum;
+    size_t bits_basic = 0;
+    size_t bits_total = 0;
+    size_t bits_max = 0;
+    if (trace->params.mcfglpk_bits) {
         mpz_init(num);
         mpz_init(den);
+        mpz_init(fractionality);
+        mpz_init(denom_sum);
     }
 
     for (int k = 1; k <= no_variables; ++k) {
@@ -463,37 +510,51 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
 
         switch (s) {
             case SSX_BS:
-                /* basic variable */
-                // if x[k] is xB[i], then Q_row[k] = i and Q_col[i] = k;
-                basic_index = ssx->Q_row[k];
-                value = &ssx->bbar[basic_index];
-                break;
+               /* basic variable */
+               // if x[k] is xB[i], then Q_row[k] = i and Q_col[i] = k;
+               basic_index = ssx->Q_row[k];
+               value = &ssx->bbar[basic_index];
+               break;
             case SSX_NL:
-                /* non-basic variable on lower bound */
-                value = &ssx->lb[k];
-                break;
+               /* non-basic variable on lower bound */
+               value = &ssx->lb[k];
+               break;
             case SSX_NU:
-                /* non-basic variable on upper bound */
-                value = &ssx->ub[k];
-                break;
+               /* non-basic variable on upper bound */
+               value = &ssx->ub[k];
+               break;
             case SSX_NF:
-                /* non-basic free variable */
-                value = NULL;
-                break;
+               /* non-basic free variable */
+               value = NULL;
+               break;
             case SSX_NS:
-                /* non-basic fixed variable */
-                value = &ssx->lb[k];
-                break;
+               /* non-basic fixed variable */
+               value = &ssx->lb[k];
+               break;
             default:
-                xassert(s != s);
+               xassert(s != s);
         }
 
-        if (trace->params.bits_only) {
-            // Sum the number of bits for all basic variables
+        if (trace->params.mcfglpk_bits) {
+            // Sum the number of bits_total for all basic variables
             if (s != SSX_NF) {
-                mpq_get_den(den, *value);
-                mpq_get_num(num, *value);
-                bits += mpz_sizeinbase(den, 2) + mpz_sizeinbase(num, 2);
+               mpq_get_den(den, *value);
+               mpq_get_num(num, *value);
+
+               size_t bits = mpz_sizeinbase(den, 2) + mpz_sizeinbase(num, 2);
+               bits_total += bits;
+
+               if (s == SSX_BS) {
+                  bits_basic += bits;
+                  mpz_add(denom_sum, denom_sum, den);
+               }
+
+               bits_max = bits > bits_max ? bits : bits_max;
+
+               if (mpz_cmp(den, fractionality) > 0) {
+                  mpz_set(fractionality, den);
+               }
+
             }
 
             continue;
@@ -505,15 +566,46 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
             fprintf(trace->variable_values_fptr, "NaN ");
     }
 
-    if (trace->params.bits_only) {
-        fprintf(trace->variable_values_fptr, "%zu", bits);
+    if (trace->params.mcfglpk_bits) {
+        mpq_t avg_fractionality, basis_size;
+        mpq_init(avg_fractionality);
+        mpq_init(basis_size);
+
+        mpq_set_z(avg_fractionality, denom_sum);
+        mpq_set_ui(basis_size, ssx->m, 1);
+        mpq_div(avg_fractionality, avg_fractionality, basis_size);
+
+        size_t bits_fractionality = mpz_sizeinbase(fractionality, 2);
+        gmp_fprintf(
+                trace->variable_values_fptr,
+                "%zu %zu %zu %zu",
+                bits_total, bits_basic, bits_max, bits_fractionality
+        );
+
         mpz_clear(den);
         mpz_clear(num);
+        mpz_clear(fractionality);
+        mpz_clear(denom_sum);
+        mpq_clear(avg_fractionality);
+        mpq_clear(basis_size);
     }
 
     fprintf(trace->variable_values_fptr, "\n");
 }
 
+/*----------------------------------------------------------------------
+// ssxtrace_append_status_file
+//
+// This routine appends the status of the variables to the variable file.
+//
+// The status of the variables is coded as follows:
+//
+//  1 - basic variable
+//  2 - non-basic variable on lower bound
+//  3 - non-basic variable on upper bound
+//  4 - non-basic free (unbounded) variable
+//  5 - non-basic fixed variable
+----------------------------------------------------------------------*/
 void ssxtrace_append_status_file(glp_ssxtrace *trace, const SSX *ssx) {
     xassert(trace->status_fptr != NULL);
 
@@ -547,6 +639,19 @@ void ssxtrace_append_status_file(glp_ssxtrace *trace, const SSX *ssx) {
     fprintf(trace->status_fptr, "\n");
 }
 
+/*----------------------------------------------------------------------
+// ssxtrace_append_status_file
+//
+// This routine appends the status of the variables to memory.
+//
+// The status of the variables is coded as follows:
+//
+//  1 - basic variable
+//  2 - non-basic variable on lower bound
+//  3 - non-basic variable on upper bound
+//  4 - non-basic free (unbounded) variable
+//  5 - non-basic fixed variable
+----------------------------------------------------------------------*/
 void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
     glp_ssxtrace_ensure_enough_space(trace);
 
@@ -581,6 +686,9 @@ void ssxtrace_append_status(glp_ssxtrace *trace, const SSX *ssx) {
     trace->updated = 1;
 }
 
+/*----------------------------------------------------------------------
+// setup_pivoting - initialize variables used when pivoting.
+----------------------------------------------------------------------*/
 void setup_pivoting(const SSX *ssx, const glp_ssxtrace *trace, int **qs,
                     int **q_dirs) {
     if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
@@ -595,6 +703,10 @@ void setup_pivoting(const SSX *ssx, const glp_ssxtrace *trace, int **qs,
         // NOTE: If this pivot is added to Phase I, this needs to be moved
         srand(time(NULL));
 }
+
+/*----------------------------------------------------------------------
+// teardown_pivoting - cleanup pivoting helper variables
+----------------------------------------------------------------------*/
 void teardown_pivoting(const glp_ssxtrace *trace, int *qs, int *q_dirs) {
     if (trace->params.pivot_rule == GLP_TRACE_PIVOT_BEST ||
         trace->params.pivot_rule == GLP_TRACE_PIVOT_RANDOM) {
@@ -603,7 +715,10 @@ void teardown_pivoting(const glp_ssxtrace *trace, int *qs, int *q_dirs) {
     }
 }
 
-void print_phase_separator(glp_ssxtrace *trace) {// Separate phases
+/*----------------------------------------------------------------------
+// print_phase_separator - add '---' to files after Phase I
+----------------------------------------------------------------------*/
+void print_phase_separator(glp_ssxtrace *trace) {
     if (trace->params.basis_trace) {
         if (trace->variable_values_fptr)
             fprintf(trace->variable_values_fptr, "---\n");
@@ -614,31 +729,32 @@ void print_phase_separator(glp_ssxtrace *trace) {// Separate phases
             fprintf(trace->objective_values_fptr, "---\n");
     }
 
-    if (trace->params.nonbasis_trace) {
+    if (trace->params.status_trace) {
         if (trace->status_fptr) {
             fprintf(trace->status_fptr, "---\n");
         }
     }
 }
-void store_values(const SSX *ssx,
-                  glp_ssxtrace *trace) {// Store basis information
+
+/*----------------------------------------------------------------------
+// print_phase_separator - add '---' to files after Phase I
+----------------------------------------------------------------------*/
+void store_values(const SSX *ssx, glp_ssxtrace *trace) {
     if (trace->params.basis_trace) {
         if (trace->variable_values_fptr)
             ssxtrace_append_variable_values_file(trace, ssx);
     }
 
-    // Store objective value
-        if (trace->params.objective_trace) {
-            if (trace->objective_values_fptr)
-                ssxtrace_append_objective_values_file(trace, ssx);
-        }
+    if (trace->params.objective_trace) {
+        if (trace->objective_values_fptr)
+            ssxtrace_append_objective_values_file(trace, ssx);
+    }
 
-        if (trace->params.nonbasis_trace) {
-            if (trace->status_fptr) {
-                ssxtrace_append_status_file(trace, ssx);
-            }
-        }
+    if (trace->params.status_trace) {
+        if (trace->status_fptr) { ssxtrace_append_status_file(trace, ssx); }
+    }
 }
+
 void pivot(SSX *ssx, const glp_ssxtrace *trace, int *qs, int *q_dirs, int *ret,
            int *should_break) {
         if (trace->params.pivot_rule == GLP_TRACE_PIVOT_DANTZIG ||
@@ -773,6 +889,20 @@ void pivot(SSX *ssx, const glp_ssxtrace *trace, int *qs, int *q_dirs, int *ret,
             xassert(trace->params.pivot_rule != trace->params.pivot_rule);
         }
 }
+
+/*----------------------------------------------------------------------
+// ssx_phase_I - find primal feasible solution while tracing the parameters.
+//
+// This routine implements phase I of the primal simplex method.
+//
+// On exit the routine returns one of the following codes:
+//
+// 0 - feasible solution found;
+// 1 - problem has no feasible solution;
+// 2 - iterations limit exceeded;
+// 3 - time limit exceeded.
+----------------------------------------------------------------------*/
+
 int ssx_phase_I_trace(SSX *ssx, glp_ssxtrace *trace)
 {   int m = ssx->m;
     int n = ssx->n;
@@ -991,13 +1121,25 @@ int ssx_phase_I_trace(SSX *ssx, glp_ssxtrace *trace)
     xfree(orig_ub);
     xfree(orig_coef);
 
-    print_phase_separator(trace);
 
     teardown_pivoting(trace, qs, q_dirs);
 
     /* return to the calling program */
     return ret;
 }
+
+/*----------------------------------------------------------------------
+// ssx_phase_II_trace - find optimal solution while tracing parameters.
+//
+// This routine implements phase II of the primal simplex method.
+//
+// On exit the routine returns one of the following codes:
+//
+// 0 - optimal solution found;
+// 1 - problem has unbounded solution;
+// 2 - iterations limit exceeded;
+// 3 - time limit exceeded.
+----------------------------------------------------------------------*/
 
 int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
 {
@@ -1056,9 +1198,8 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
         ssx->it_cnt++;
 
         if (ssx->msg_lev >= GLP_MSG_OFF)
-            xprintf("phase II - iteration: %d\n", ssx->it_cnt);
+            xprintf("phase-II - iteration: %d\n", ssx->it_cnt);
 
-        // Store basis information
         if (trace->params.basis_trace) {
             if (trace->params.store_mem)
                 ssxtrace_append_basic_values(trace, ssx);
@@ -1067,7 +1208,6 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
                 ssxtrace_append_variable_values_file(trace, ssx);
         }
 
-        // Store objective value
         if (trace->params.objective_trace) {
             if (trace->params.store_mem)
                 ssxtrace_append_objective_values(trace, ssx);
@@ -1076,7 +1216,7 @@ int ssx_phase_II_trace(SSX *ssx, glp_ssxtrace *trace)
                 ssxtrace_append_objective_values_file(trace, ssx);
         }
 
-        if (trace->params.nonbasis_trace) {
+        if (trace->params.status_trace) {
             if (trace->params.store_mem)
                 ssxtrace_append_status(trace, ssx);
 
@@ -1251,6 +1391,24 @@ done: /* decrease the time limit by the spent amount of time */
       return ret;
 }
 
+/*----------------------------------------------------------------------
+// ssx_driver_trace - base driver to exact simplex method with trace.
+//
+// This routine is a base driver to a version of the primal simplex
+// method using exact (bignum) arithmetic. Supports tracing of parameters.
+//
+// On exit the routine returns one of the following codes:
+//
+// 0 - optimal solution found;
+// 1 - problem has no feasible solution;
+// 2 - problem has unbounded solution;
+// 3 - iterations limit exceeded (phase I);
+// 4 - iterations limit exceeded (phase II);
+// 5 - time limit exceeded (phase I);
+// 6 - time limit exceeded (phase II);
+// 7 - initial basis matrix is exactly singular.
+----------------------------------------------------------------------*/
+
 int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
 {   int m = ssx->m;
     int *type = ssx->type;
@@ -1297,6 +1455,7 @@ int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
     }
     /* phase I: find primal feasible solution */
     ret = ssx_phase_I_trace(ssx, trace);
+    print_phase_separator(trace);
     switch (ret)
     {  case 0:
             ret = 0;

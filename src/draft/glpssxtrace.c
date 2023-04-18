@@ -29,11 +29,10 @@ glp_stmcp DEFAULT_STMCP = {
         .store_mem = GLP_STORE_TRACE_MEM_OFF,
 
         .basis_trace = GLP_BASIS_TRACE_OFF,
-        .nonbasis_trace = GLP_NONBASIS_TRACE_OFF,
-        .complexity_trace = GLP_COMPLEXITY_TRACE_ON,
+        .status_trace = GLP_STATUS_TRACE_OFF,
         .objective_trace = GLP_OBJECTIVE_TRACE_ON,
         .pivot_rule = GLP_TRACE_PIVOT_DANTZIG,
-        .bits_only = GLP_TRACE_BITS_ONLY_OFF,
+        .mcfglpk_bits = GLP_TRACE_BITS_ONLY_OFF,
 
         .info_file_basename = {'\0'},
         .objective_values_file_basename = {'\0'},
@@ -155,7 +154,7 @@ void glp_ssxtrace_ensure_enough_space(glp_ssxtrace *trace) {
     xassert(trace->no_nonbasic > 0);
 
     if (trace->_allocated_iter == 0) {
-        if (trace->params.nonbasis_trace == GLP_NONBASIS_TRACE_ON) {
+        if (trace->params.status_trace == GLP_STATUS_TRACE_ON) {
             size_t k = trace->no_basic + trace->no_nonbasic + 1;
             trace->status =
                     xalloc(SSXTRACE_DEAFULT_ITERATION_SPACE * k, sizeof(int));
@@ -188,7 +187,7 @@ void glp_ssxtrace_ensure_enough_space(glp_ssxtrace *trace) {
     // Double the amount of space
     trace->_allocated_iter *= 2;
 
-    if (trace->params.nonbasis_trace == GLP_NONBASIS_TRACE_ON) {
+    if (trace->params.status_trace == GLP_STATUS_TRACE_ON) {
         size_t k = trace->no_basic + trace->no_nonbasic + 1;
         trace->status = xrealloc(trace->status, trace->_allocated_iter * k,
                                  sizeof(int));
