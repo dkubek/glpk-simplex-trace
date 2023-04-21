@@ -546,7 +546,7 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
 
                if (s == SSX_BS) {
                   bits_basic += bits;
-                  mpz_add(denom_sum, denom_sum, den);
+                  //mpz_add(denom_sum, denom_sum, den);
                }
 
                bits_max = bits > bits_max ? bits : bits_max;
@@ -567,27 +567,27 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
     }
 
     if (trace->params.mcfglpk_bits) {
-        mpq_t avg_fractionality, basis_size;
-        mpq_init(avg_fractionality);
-        mpq_init(basis_size);
+        //mpq_t avg_fractionality, basis_size;
+        //mpq_init(avg_fractionality);
+        //mpq_init(basis_size);
 
-        mpq_set_z(avg_fractionality, denom_sum);
-        mpq_set_ui(basis_size, ssx->m, 1);
-        mpq_div(avg_fractionality, avg_fractionality, basis_size);
+        //mpq_set_z(avg_fractionality, denom_sum);
+        //mpq_set_ui(basis_size, ssx->m, 1);
+        //mpq_div(avg_fractionality, avg_fractionality, basis_size);
 
         size_t bits_fractionality = mpz_sizeinbase(fractionality, 2);
         gmp_fprintf(
                 trace->variable_values_fptr,
-                "%zu %zu %zu %zu",
-                bits_total, bits_basic, bits_max, bits_fractionality
+                "%zu %zu",
+                bits_max, bits_fractionality
         );
 
         mpz_clear(den);
         mpz_clear(num);
         mpz_clear(fractionality);
         mpz_clear(denom_sum);
-        mpq_clear(avg_fractionality);
-        mpq_clear(basis_size);
+        // mpq_clear(avg_fractionality);
+        // mpq_clear(basis_size);
     }
 
     fprintf(trace->variable_values_fptr, "\n");
@@ -1418,8 +1418,11 @@ int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
     mpq_t *bbar = ssx->bbar;
     int i, k, ret;
     ssx->tm_beg = xtime();
-    /* factorize the initial basis matrix */
 
+    // Scale the problem
+    // TODO
+
+    /* factorize the initial basis matrix */
     if (ssx_factorize(ssx))
     {  if (ssx->msg_lev >= GLP_MSG_ERR)
             xprintf("Initial basis matrix is singular\n");

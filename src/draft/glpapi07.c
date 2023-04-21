@@ -26,58 +26,60 @@
 #include "glpssx.h"
 #include "misc.h"
 #include "prob.h"
+#include <sys/stat.h>
 
+void print_solution_status(int ret, glp_ssxtrace* trace);
 /***********************************************************************
-*  NAME
-*
-*  glp_exact - solve LP problem in exact arithmetic
-*
-*  SYNOPSIS
-*
-*  int glp_exact(glp_prob *lp, const glp_smcp *parm);
-*
-*  DESCRIPTION
-*
-*  The routine glp_exact is a tentative implementation of the primal
-*  two-phase simplex method based on exact (rational) arithmetic. It is
-*  similar to the routine glp_simplex, however, for all internal
-*  computations it uses arithmetic of rational numbers, which is exact
-*  in mathematical sense, i.e. free of round-off errors unlike floating
-*  point arithmetic.
-*
-*  Note that the routine glp_exact uses inly two control parameters
-*  passed in the structure glp_smcp, namely, it_lim and tm_lim.
-*
-*  RETURNS
-*
-*  0  The LP problem instance has been successfully solved. This code
-*     does not necessarily mean that the solver has found optimal
-*     solution. It only means that the solution process was successful.
-*
-*  GLP_EBADB
-*     Unable to start the search, because the initial basis specified
-*     in the problem object is invalid--the number of basic (auxiliary
-*     and structural) variables is not the same as the number of rows in
-*     the problem object.
-*
-*  GLP_ESING
-*     Unable to start the search, because the basis matrix correspodning
-*     to the initial basis is exactly singular.
-*
-*  GLP_EBOUND
-*     Unable to start the search, because some double-bounded variables
-*     have incorrect bounds.
-*
-*  GLP_EFAIL
-*     The problem has no rows/columns.
-*
-*  GLP_EITLIM
-*     The search was prematurely terminated, because the simplex
-*     iteration limit has been exceeded.
-*
-*  GLP_ETMLIM
-*     The search was prematurely terminated, because the time limit has
-*     been exceeded. */
+ *  NAME
+ *
+ *  glp_exact - solve LP problem in exact arithmetic
+ *
+ *  SYNOPSIS
+ *
+ *  int glp_exact(glp_prob *lp, const glp_smcp *parm);
+ *
+ *  DESCRIPTION
+ *
+ *  The routine glp_exact is a tentative implementation of the primal
+ *  two-phase simplex method based on exact (rational) arithmetic. It is
+ *  similar to the routine glp_simplex, however, for all internal
+ *  computations it uses arithmetic of rational numbers, which is exact
+ *  in mathematical sense, i.e. free of round-off errors unlike floating
+ *  point arithmetic.
+ *
+ *  Note that the routine glp_exact uses inly two control parameters
+ *  passed in the structure glp_smcp, namely, it_lim and tm_lim.
+ *
+ *  RETURNS
+ *
+ *  0  The LP problem instance has been successfully solved. This code
+ *     does not necessarily mean that the solver has found optimal
+ *     solution. It only means that the solution process was successful.
+ *
+ *  GLP_EBADB
+ *     Unable to start the search, because the initial basis specified
+ *     in the problem object is invalid--the number of basic (auxiliary
+ *     and structural) variables is not the same as the number of rows in
+ *     the problem object.
+ *
+ *  GLP_ESING
+ *     Unable to start the search, because the basis matrix correspodning
+ *     to the initial basis is exactly singular.
+ *
+ *  GLP_EBOUND
+ *     Unable to start the search, because some double-bounded variables
+ *     have incorrect bounds.
+ *
+ *  GLP_EFAIL
+ *     The problem has no rows/columns.
+ *
+ *  GLP_EITLIM
+ *     The search was prematurely terminated, because the simplex
+ *     iteration limit has been exceeded.
+ *
+ *  GLP_ETMLIM
+ *     The search was prematurely terminated, because the time limit has
+ *     been exceeded. */
 
 static void set_d_eps(mpq_t x, double val)
 {     /* convert double val to rational x obtaining a more adequate
@@ -496,6 +498,133 @@ done: /* delete the simplex solver workspace */
       return ret;
 }
 
+void scale_problem(const SSX *ssx, mpq_t scale_out) {
+      int m = ssx->m;
+      int n = ssx->n;
+
+      mpz_t lcm, tmp;
+      mpz_init(tmp);
+      mpz_init_set_d(lcm, 1);
+
+      // Get the LCM of all denominators
+      for (size_t k = 1; k <= m + n; k++) {
+         mpq_get_den(tmp, ssx->lb[k]);
+         mpz_lcm(lcm, lcm, tmp);
+
+         mpq_get_den(tmp, ssx->ub[k]);
+         mpz_lcm(lcm, lcm, tmp);
+      }
+      mpz_clear(tmp);
+
+      mpq_set_z(scale_out, lcm);
+      mpz_clear(lcm);
+
+      // Multiply
+      for (size_t k = 1; k <= m + n; k++) {
+         mpq_mul(ssx->lb[k], ssx->lb[k], scale_out);
+         mpq_mul(ssx->ub[k], ssx->ub[k], scale_out);
+      }
+}
+
+void print_solution_status(int ret, glp_ssxtrace* trace) {
+    char *status;
+    switch (ret)
+    {  case 0:
+            /* optimal solution found */
+            status = "OPTIMAL";
+            break;
+        case 1:
+            /* problem has no feasible solution */
+            status = "INFEASIBLE";
+            break;
+        case 2:
+            /* problem has unbounded solution */
+            status = "UNBOUNDED";
+            break;
+        case 3:
+            /* iteration limit exceeded (phase I) */
+            status = "ITERATION LIMIT EXCEEDED (P1)";
+            break;
+        case 4:
+            /* iteration limit exceeded (phase II) */
+            status = "ITERATION LIMIT EXCEEDED (P2)";
+            break;
+        case 5:
+            /* time limit exceeded (phase I) */
+            status = "TIME LIMIT EXCEEDED (P1)";
+            break;
+        case 6:
+            /* time limit exceeded (phase II) */
+            status = "TIME LIMIT EXCEEDED (P2)";
+            break;
+        default:
+            xassert(ret != ret);
+    }
+
+    fprintf(trace->info_fptr, "status : %s\n", status);
+}
+
+void print_final_solution(glp_prob *P, glp_ssxtrace *trace, const SSX *ssx) {
+    int m = ssx->m;
+    int n = ssx->n;
+    int i, j, k;
+
+    fprintf(trace->info_fptr, "--- BEGIN VARIABLES ---\n");
+
+    mpq_t prim;
+    mpq_init(prim);
+    char stat, var_type;
+    char varname[255];
+    for (k = 1; k <= m+n; k++)
+    {  if (ssx->stat[k] == SSX_BS)
+        {  i = ssx->Q_row[k]; /* x[k] = xB[i] */
+            xassert(1 <= i && i <= m);
+            stat = 'b';
+            mpq_set(prim, ssx->bbar[i]);
+        }
+        else
+        {  j = ssx->Q_row[k] - m; /* x[k] = xN[j] */
+            xassert(1 <= j && j <= n);
+            switch (ssx->stat[k])
+            {  case SSX_NF:
+                  stat = 'e';
+                    mpq_init(prim);
+                    break;
+                case SSX_NL:
+                    stat = 'l';
+                    mpq_set(prim, ssx->lb[k]);
+                    break;
+                case SSX_NU:
+                    stat = 'u';
+                    mpq_set(prim, ssx->ub[k]);
+                    break;
+                case SSX_NS:
+                    stat = 'f';
+                    mpq_set(prim, ssx->lb[k]);
+                    break;
+                default:
+                    xassert(ssx != ssx);
+            }
+        }
+        if (k <= m)
+        {
+            var_type = 'l';
+            strcpy(varname, glp_get_row_name(P, k));
+        }
+        else
+        {
+            var_type = 's';
+            strcpy(varname, glp_get_col_name(P, k-m));
+        }
+
+        gmp_fprintf(trace->info_fptr, "%c %s %c %Qd\n", var_type, varname, stat,
+                    prim);
+    }
+
+    fprintf(trace->info_fptr, "--- END VARIABLES ---\n");
+
+    mpq_clear(prim);
+}
 int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
 {   glp_smcp _parm;
     SSX *ssx;
@@ -569,6 +698,24 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
     ssx = ssx_create(m, n, nnz);
     /* load LP problem data into the workspace */
     load_data(ssx, P);
+
+    if (trace->params.scale == GLP_TRACE_SCALE_ON) {
+        mpq_t scale;
+        mpq_init(scale);
+        scale_problem(ssx, scale);
+
+        if (trace->info_fptr) {
+            gmp_fprintf(trace->info_fptr, "scale : %Qd\n", scale);
+        }
+        mpq_clear(scale);
+    }
+
+    if (trace->info_fptr) {
+        fprintf(trace->info_fptr, "rows : %d\n", m);
+        fprintf(trace->info_fptr, "cols : %d\n", n);
+        fprintf(trace->info_fptr, "nonzeros : %d\n", nnz);
+    }
+
     /* load current LP basis into the workspace */
     if (load_basis(ssx, P))
     {  if (parm->msg_lev >= GLP_MSG_ERR)
@@ -610,11 +757,9 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
             /* problem has unbounded solution */
             ret = 0;
             pst = GLP_FEAS, dst = GLP_NOFEAS;
-#if 1
             xassert(1 <= ssx->q && ssx->q <= n);
             P->some = ssx->Q_col[m + ssx->q];
             xassert(1 <= P->some && P->some <= m+n);
-#endif
             break;
         case 3:
             /* iteration limit exceeded (phase I) */
@@ -643,6 +788,12 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
         default:
             xassert(ret != ret);
     }
+
+    if (trace->info_fptr) {
+        fprintf(trace->info_fptr, "iterations : %d\n", ssx->it_cnt);
+        print_solution_status(ret, trace);
+    }
+
     /* store final basic solution components into LP object */
     P->pbs_stat = pst;
     P->dbs_stat = dst;
@@ -693,7 +844,18 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
         }
     }
     P->obj_val = sum;
-    done: /* delete the simplex solver workspace */
+
+    // Print the final objective value
+    if (trace->info_fptr) {
+        gmp_fprintf(trace->info_fptr, "objective : %Qd\n", ssx->bbar[0]);
+    }
+
+    // Print the final variable values
+    if (trace->info_fptr) {
+        print_final_solution(P, trace, ssx);
+    }
+
+done: /* delete the simplex solver workspace */
     ssx_delete(ssx);
 #if 1 /* 23/XI-2015 */
     xassert(gmp_pool_count() == 0);
