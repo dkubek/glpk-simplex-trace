@@ -1,10 +1,15 @@
 cmake_minimum_required(VERSION 3.0)
 
-option(GLPK_WITH_GMP"use GNU MP bignum library" OFF)
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW)
+endif()
+
+#option(GLPK_WITH_GMP "use GNU MP bignum library" OFF)
+set(GLPK_WITH_GMP ON)
 
 # Define variables for library
-set(PROJECT_NAME glpk-debug)
-set(LIBRARY_NAME glpk-debug)
+set(PROJECT_NAME glpk-simplex-trace)
+set(LIBRARY_NAME glpk-simplex-trace)
 
 project(${PROJECT_NAME} C)
 

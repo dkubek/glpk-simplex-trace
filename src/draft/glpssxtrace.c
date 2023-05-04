@@ -32,7 +32,7 @@ glp_stmcp DEFAULT_STMCP = {
         .status_trace = GLP_STATUS_TRACE_OFF,
         .objective_trace = GLP_OBJECTIVE_TRACE_ON,
         .pivot_rule = GLP_TRACE_PIVOT_DANTZIG,
-        .mcfglpk_bits = GLP_TRACE_BITS_ONLY_OFF,
+        .fractionality_bits_trace = GLP_TRACE_BITS_ONLY_OFF,
         .scale = GLP_TRACE_SCALE_OFF,
 
         .info_file_basename = {'\0'},

@@ -564,67 +564,66 @@ void print_solution_status(int ret, glp_ssxtrace* trace) {
     fprintf(trace->info_fptr, "status : %s\n", status);
 }
 
-void print_final_solution(glp_prob *P, glp_ssxtrace *trace, const SSX *ssx) {
+void print_final_solution(glp_prob* P, glp_ssxtrace* trace, const SSX* ssx)
+{
     int m = ssx->m;
     int n = ssx->n;
     int i, j, k;
 
-    fprintf(trace->info_fptr, "--- BEGIN VARIABLES ---\n");
+    fprintf(trace->info_fptr,
+            "--- BEGIN VARIABLES (TYPE-NAME-STATUS-VALUE) ---\n");
 
     mpq_t prim;
     mpq_init(prim);
     char stat, var_type;
     char varname[255];
-    for (k = 1; k <= m+n; k++)
-    {  if (ssx->stat[k] == SSX_BS)
-        {  i = ssx->Q_row[k]; /* x[k] = xB[i] */
+    for (k = 1; k <= m + n; k++) {
+        if (ssx->stat[k] == SSX_BS) {
+            i = ssx->Q_row[k]; /* x[k] = xB[i] */
             xassert(1 <= i && i <= m);
             stat = 'b';
             mpq_set(prim, ssx->bbar[i]);
-        }
-        else
-        {  j = ssx->Q_row[k] - m; /* x[k] = xN[j] */
+        } else {
+            j = ssx->Q_row[k] - m; /* x[k] = xN[j] */
             xassert(1 <= j && j <= n);
-            switch (ssx->stat[k])
-            {  case SSX_NF:
+            switch (ssx->stat[k]) {
+               case SSX_NF:
                   stat = 'e';
-                    mpq_init(prim);
-                    break;
-                case SSX_NL:
-                    stat = 'l';
-                    mpq_set(prim, ssx->lb[k]);
-                    break;
-                case SSX_NU:
-                    stat = 'u';
-                    mpq_set(prim, ssx->ub[k]);
-                    break;
-                case SSX_NS:
-                    stat = 'f';
-                    mpq_set(prim, ssx->lb[k]);
-                    break;
-                default:
-                    xassert(ssx != ssx);
+                  mpq_init(prim);
+                  break;
+               case SSX_NL:
+                  stat = 'l';
+                  mpq_set(prim, ssx->lb[k]);
+                  break;
+               case SSX_NU:
+                  stat = 'u';
+                  mpq_set(prim, ssx->ub[k]);
+                  break;
+               case SSX_NS:
+                  stat = 'f';
+                  mpq_set(prim, ssx->lb[k]);
+                  break;
+               default:
+                  xassert(ssx != ssx);
             }
         }
-        if (k <= m)
-        {
+        if (k <= m) {
             var_type = 'l';
             strcpy(varname, glp_get_row_name(P, k));
-        }
-        else
-        {
+        } else {
             var_type = 's';
-            strcpy(varname, glp_get_col_name(P, k-m));
+            strcpy(varname, glp_get_col_name(P, k - m));
         }
 
-        gmp_fprintf(trace->info_fptr, "%c %s %c %Qd\n", var_type, varname, stat,
-                    prim);
+        gmp_fprintf(
+          trace->info_fptr, "%c %s %c %Qd\n", var_type, varname, stat, prim);
     }
 
     fprintf(trace->info_fptr, "--- END VARIABLES ---\n");
 
     mpq_clear(prim);
 }
+
 int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
 {   glp_smcp _parm;
     SSX *ssx;
@@ -741,6 +740,7 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
 #else
     P->it_cnt = ssx->it_cnt;
 #endif
+    int orig_ret = ret;
     /* analyze the return code */
     switch (ret)
     {  case 0:
@@ -791,7 +791,7 @@ int glp_exact_trace(glp_prob *P, const glp_smcp *parm, glp_ssxtrace *trace)
 
     if (trace->info_fptr) {
         fprintf(trace->info_fptr, "iterations : %d\n", ssx->it_cnt);
-        print_solution_status(ret, trace);
+        print_solution_status(orig_ret, trace);
     }
 
     /* store final basic solution components into LP object */

@@ -1,4 +1,4 @@
-set(LIBRARY_NAME glpk-debug)
+set(LIBRARY_NAME glpk-simplex-trace)
 
 add_library(${LIBRARY_NAME}
 	amd/amd_1.c

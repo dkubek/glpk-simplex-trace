@@ -393,9 +393,6 @@ void ssxtrace_init(glp_ssxtrace *trace, const SSX *ssx) {
         mpq_init(trace->ub[i]);
         mpq_set(trace->ub[i], ssx->ub[i]);
     }
-
-    // TODO : Initialize names
-    // NOTE: This seems to be inaccessible from this scope
 }
 
 /*----------------------------------------------------------------------
@@ -410,7 +407,7 @@ void ssxtrace_append_objective_values_file(glp_ssxtrace *trace, const SSX *ssx) 
     size_t bits, bits_den;
 
     // Append only the size of the bit representation
-    if (trace->params.mcfglpk_bits) {
+    if (trace->params.fractionality_bits_trace) {
         mpz_init(num);
         mpz_init(den);
 
@@ -483,7 +480,7 @@ void ssxtrace_append_basic_values(glp_ssxtrace *trace, const SSX *ssx) {
 //
 // This routine appends the values of the variables to the variable file.
 //
-// If the special option 'mcfglpk_bits' is set. Then the bit size of the
+// If the special option 'fractionality_bits_trace' is set. Then the bit size of the
 // bit representation of the basic values is traced. As well as maximal
 // fractionality (again only bit size).
 ----------------------------------------------------------------------*/
@@ -497,7 +494,7 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
     size_t bits_basic = 0;
     size_t bits_total = 0;
     size_t bits_max = 0;
-    if (trace->params.mcfglpk_bits) {
+    if (trace->params.fractionality_bits_trace) {
         mpz_init(num);
         mpz_init(den);
         mpz_init(fractionality);
@@ -535,7 +532,7 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
                xassert(s != s);
         }
 
-        if (trace->params.mcfglpk_bits) {
+        if (trace->params.fractionality_bits_trace) {
             // Sum the number of bits_total for all basic variables
             if (s != SSX_NF) {
                mpq_get_den(den, *value);
@@ -566,7 +563,7 @@ void ssxtrace_append_variable_values_file(glp_ssxtrace *trace, const SSX *ssx) {
             fprintf(trace->variable_values_fptr, "NaN ");
     }
 
-    if (trace->params.mcfglpk_bits) {
+    if (trace->params.fractionality_bits_trace) {
         //mpq_t avg_fractionality, basis_size;
         //mpq_init(avg_fractionality);
         //mpq_init(basis_size);
@@ -1418,9 +1415,6 @@ int ssx_driver_trace(SSX *ssx, glp_ssxtrace *trace)
     mpq_t *bbar = ssx->bbar;
     int i, k, ret;
     ssx->tm_beg = xtime();
-
-    // Scale the problem
-    // TODO
 
     /* factorize the initial basis matrix */
     if (ssx_factorize(ssx))

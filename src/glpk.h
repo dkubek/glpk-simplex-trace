@@ -325,7 +325,7 @@ typedef struct { /* simplex trace method control parameters */
 #define GLP_TRACE_PIVOT_BLAND 2
 #define GLP_TRACE_PIVOT_RANDOM 3
 
-    int mcfglpk_bits;
+    int fractionality_bits_trace;
 #define GLP_TRACE_BITS_ONLY_OFF 0
 #define GLP_TRACE_BITS_ONLY_ON 1
 
@@ -379,11 +379,7 @@ struct glp_ssxtrace {
     /* Array of arrays of evaluations of basic solutions */
 
     FILE* info_fptr;
-    /* Contains general information about the problem
-     *  - no variables
-     *  - no iterations
-     *  - rule used
-     *  */
+    /* Contains general information about the problem */
     FILE* status_fptr;
     /* File pointer to a file where the variables of basic solutions should
      * be stored */
