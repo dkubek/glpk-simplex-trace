@@ -142,14 +142,14 @@ Status of a variable is one of 5 possible values
 * ``4`` - non-basic free (unbounded) variable
 * ``5`` - non-basic fixed variable
 
-Variable can be either _logical_ or _structural_ (for more information on structural and logical variables refore to
-GLPK
-Manual)
+Variable can be either _logical_ or _structural_ (for more information on
+structural and logical variables refore to GLPK Manual)
 
 - **Info file ouput**
 
-  The info file output is split into two sections. The first section is right at the beginning of the file, with each
-  line containing a ``key : value`` pair. The possible values listed are
+  The info file output is split into two sections. The first section is right
+  at the beginning of the file, with each line containing a ``key : value``
+  pair. The possible values listed are
     * ``rows``: The number of rows of the problem matrix. Also represents the number of logical variables.
     * ``cols``: The number of columns of the problem matrix. Also represents the number of structural variables.
     * ``nonzeros``: The number of nonzero values in the problem matrix.
@@ -165,7 +165,8 @@ Manual)
     ...
     --- END VARIABLES ---
     ```
-  Each line in this section contains three values separated by space in this order -- type, name, status, value
+  Each line in this section contains three values separated by space in the 
+  order: type, name, status, value
     * ``type``: denotes whether the variable is logical ``l`` or structural ``s``
     * ``name``: denotes the name of the variable
     * ``status``: denotes the final status of the variable
@@ -173,12 +174,15 @@ Manual)
 
 - **Variable file output format**
 
-  The i-th line of the variable file contains a list of rational numbers separated by space representing the values of
-  the variables in the i-th iteration. The order of variables is as defined in the info file.
+  The i-th line of the variable file contains a list of rational numbers
+  separated by space representing the values of the variables in the i-th
+  iteration. The order of variables is as defined in the info file.
 
 - **Objective file output**
-  The i-th line contains a single rational number representing the objective value in i-th iteration.
+  The i-th line contains a single rational number representing the objective
+  value in i-th iteration.
 
 - **Status file output**
-  The i-th line of the variable file contains a list of integers separated by space representing the status of
-  the variables in the i-th iteration. The order of variables is as defined in the info file.
+  The i-th line of the variable file contains a list of integers separated by
+  space representing the status of the variables in the i-th iteration. The
+  order of variables is as defined in the info file.
