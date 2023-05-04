@@ -99,7 +99,6 @@ supports the phase II and storing the solution to a file is better in almost
 all cases.
 
 Usage example:
-
 ```c
 void solve(char* filename) {
     glp_prob *P;
@@ -128,8 +127,7 @@ void solve(char* filename) {
     glp_delete_prob(P);
 }
 ```
-
-For a complete example refer to ``dkubek/glpsol_tracer``
+For a complete example refer to [``dkubek/glpsol_tracer``](https://github.com/dkubek/glpsol_trace).
 
 ## Output Format
 
